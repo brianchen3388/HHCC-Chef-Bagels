@@ -7,6 +7,8 @@ import type {
   CanvasItem,
   GeneratedWebsite,
   RecognizedPrimitive,
+  StructureOverrides,
+  StructureOverrideType,
   WebsiteNode,
 } from './sketch/model';
 import { inferWebsite, recognizeCanvas } from './sketch/recognition';
@@ -26,6 +28,19 @@ const outputViews: Array<{ id: OutputView; label: string }> = [
   { id: 'preview', label: 'Preview' },
   { id: 'structure', label: 'Structure' },
   { id: 'code', label: 'Code' },
+];
+
+const correctionTypes: Array<{ value: StructureOverrideType; label: string }> = [
+  { value: 'navbar', label: 'Navbar' },
+  { value: 'hero', label: 'Hero section' },
+  { value: 'card', label: 'Card' },
+  { value: 'heading', label: 'Heading' },
+  { value: 'paragraph', label: 'Paragraph' },
+  { value: 'image', label: 'Image' },
+  { value: 'button', label: 'Button' },
+  { value: 'input', label: 'Input' },
+  { value: 'form', label: 'Form' },
+  { value: 'footer', label: 'Footer' },
 ];
 
 function GeneratedPreview({ site }: { site: GeneratedWebsite }) {
@@ -115,22 +130,64 @@ function GeneratedPreview({ site }: { site: GeneratedWebsite }) {
   );
 }
 
-function StructureBranch({ node }: { node: WebsiteNode }) {
+function StructureBranch({
+  node,
+  onSelect,
+  overrides,
+  selectedSourceIds,
+}: {
+  node: WebsiteNode;
+  onSelect: (node: WebsiteNode) => void;
+  overrides: StructureOverrides;
+  selectedSourceIds: string[];
+}) {
+  const editable = node.type !== 'page' && node.sourcePrimitiveIds.length > 0;
+  const manuallyCorrected = node.sourcePrimitiveIds.some((id) => overrides[id]);
+  const selected =
+    editable &&
+    selectedSourceIds.length === node.sourcePrimitiveIds.length &&
+    selectedSourceIds.every((id) => node.sourcePrimitiveIds.includes(id));
+
   return (
     <li>
-      <div>
+      <button
+        aria-pressed={selected}
+        className={selected ? 'structure-node selected' : 'structure-node'}
+        disabled={!editable}
+        onClick={() => editable && onSelect(node)}
+        type="button"
+      >
         <span>{node.type}</span>
-        <small>{Math.round(node.confidence * 100)}%</small>
-      </div>
+        <small>{manuallyCorrected ? 'Manual' : `${Math.round(node.confidence * 100)}%`}</small>
+      </button>
       {node.children.length > 0 && (
         <ul>
           {node.children.map((child) => (
-            <StructureBranch key={child.id} node={child} />
+            <StructureBranch
+              key={child.id}
+              node={child}
+              onSelect={onSelect}
+              overrides={overrides}
+              selectedSourceIds={selectedSourceIds}
+            />
           ))}
         </ul>
       )}
     </li>
   );
+}
+
+function findStructureNode(node: WebsiteNode, sourceIds: string[]): WebsiteNode | null {
+  for (const child of node.children) {
+    const match = findStructureNode(child, sourceIds);
+    if (match) return match;
+  }
+
+  const sameSources =
+    node.type !== 'page' &&
+    sourceIds.length === node.sourcePrimitiveIds.length &&
+    sourceIds.every((id) => node.sourcePrimitiveIds.includes(id));
+  return sameSources ? node : null;
 }
 
 type OutputPanelProps = {
@@ -145,6 +202,8 @@ type OutputPanelProps = {
   setOutputView: (view: OutputView) => void;
   site: GeneratedWebsite;
   onCopy: () => void;
+  onStructureOverride: (sourceIds: string[], type: StructureOverrideType | 'automatic') => void;
+  overrides: StructureOverrides;
 };
 
 function OutputPanel({
@@ -152,14 +211,22 @@ function OutputPanel({
   copiedLabel,
   cssCode,
   onCopy,
+  onStructureOverride,
   outputView,
   previewSize,
   primitives,
+  overrides,
   reactCode,
   setCodeView,
   setOutputView,
   site,
 }: OutputPanelProps) {
+  const [selectedSourceIds, setSelectedSourceIds] = useState<string[]>([]);
+  const selectedStructureNode = findStructureNode(site.tree, selectedSourceIds);
+  const selectedOverride = selectedStructureNode?.sourcePrimitiveIds
+    .map((id) => overrides[id])
+    .find(Boolean);
+
   return (
     <section className="panel preview-panel" aria-labelledby="preview-heading">
       <div className="panel-heading">
@@ -201,9 +268,46 @@ function OutputPanel({
       {outputView === 'structure' && (
         <div className="structure-stage">
           {site.tree.children.length > 0 ? (
-            <ul className="structure-tree">
-              <StructureBranch node={site.tree} />
-            </ul>
+            <div className="structure-layout">
+              <div className="structure-editor">
+                <div>
+                  <p className="eyebrow">Selected element</p>
+                  <h3>{selectedStructureNode ? selectedStructureNode.type : 'Choose an element'}</h3>
+                  <p>
+                    {selectedStructureNode
+                      ? 'Change this element when the automatic guess is not right.'
+                      : 'Click any element in the tree to correct its type.'}
+                  </p>
+                </div>
+                <label>
+                  Element type
+                  <select
+                    disabled={!selectedStructureNode}
+                    onChange={(event) => {
+                      if (!selectedStructureNode) return;
+                      onStructureOverride(
+                        selectedStructureNode.sourcePrimitiveIds,
+                        event.target.value as StructureOverrideType | 'automatic',
+                      );
+                    }}
+                    value={selectedOverride ?? 'automatic'}
+                  >
+                    <option value="automatic">Automatic ({selectedStructureNode?.type ?? 'detected type'})</option>
+                    {correctionTypes.map((type) => (
+                      <option key={type.value} value={type.value}>{type.label}</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              <ul className="structure-tree">
+                <StructureBranch
+                  node={site.tree}
+                  onSelect={(node) => setSelectedSourceIds(node.sourcePrimitiveIds)}
+                  overrides={overrides}
+                  selectedSourceIds={selectedSourceIds}
+                />
+              </ul>
+            </div>
           ) : (
             <div className="preview-empty compact">
               <h2>No structure yet</h2>
@@ -255,6 +359,7 @@ function OutputPanel({
 export default function SketchSiteApp() {
   const [canvasItems, setCanvasItems] = useState<CanvasItem[]>([]);
   const [primitives, setPrimitives] = useState<RecognizedPrimitive[]>([]);
+  const [structureOverrides, setStructureOverrides] = useState<StructureOverrides>({});
   const [recognitionStatus, setRecognitionStatus] =
     useState<RecognitionStatus>('idle');
   const [previewSize, setPreviewSize] = useState<PreviewSize>('desktop');
@@ -282,7 +387,10 @@ export default function SketchSiteApp() {
     return () => window.clearTimeout(timer);
   }, [canvasItems]);
 
-  const site = useMemo(() => inferWebsite(primitives), [primitives]);
+  const site = useMemo(
+    () => inferWebsite(primitives, structureOverrides),
+    [primitives, structureOverrides],
+  );
   const reactCode = useMemo(() => generateReact(site), [site]);
   const cssCode = useMemo(() => generateCss(), []);
 
@@ -292,7 +400,25 @@ export default function SketchSiteApp() {
     if (nextItems.length === 0) {
       recognitionRevision.current += 1;
       setPrimitives([]);
+      setStructureOverrides({});
     }
+  }
+
+  function handleStructureOverride(
+    sourceIds: string[],
+    type: StructureOverrideType | 'automatic',
+  ) {
+    setStructureOverrides((current) => {
+      const next = { ...current };
+      sourceIds.forEach((sourceId) => {
+        if (type === 'automatic') {
+          delete next[sourceId];
+        } else {
+          next[sourceId] = type;
+        }
+      });
+      return next;
+    });
   }
 
   function recognizeNow() {
@@ -357,9 +483,11 @@ export default function SketchSiteApp() {
           copiedLabel={copiedLabel}
           cssCode={cssCode}
           onCopy={copyCode}
+          onStructureOverride={handleStructureOverride}
           outputView={outputView}
           previewSize={previewSize}
           primitives={primitives}
+          overrides={structureOverrides}
           reactCode={reactCode}
           setCodeView={setCodeView}
           setOutputView={setOutputView}

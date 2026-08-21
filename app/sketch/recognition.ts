@@ -7,6 +7,7 @@ import {
   type GeneratedWebsite,
   type Point,
   type RecognizedPrimitive,
+  type StructureOverrides,
   type WebsiteNode,
   type WebsiteNodeType,
 } from './model';
@@ -277,38 +278,73 @@ function isWideBottomContainer(primitive: RecognizedPrimitive) {
 
 export function inferWebsite(
   primitives: RecognizedPrimitive[],
+  overrides: StructureOverrides = {},
 ): GeneratedWebsite {
-  const containers = primitives.filter((primitive) => primitive.type === 'container');
-  const texts = primitives.filter((primitive) => primitive.type === 'text');
-  const buttons = primitives.filter((primitive) => primitive.type === 'button');
-  const inputs = primitives.filter((primitive) => primitive.type === 'input');
-  const images = primitives.filter((primitive) => primitive.type === 'image');
-  const navbarPrimitive = primitives.find(isWideTopContainer);
-  const footerPrimitive = primitives.find(isWideBottomContainer);
+  const isType = (primitive: RecognizedPrimitive, type: string) =>
+    overrides[primitive.id] === type ||
+    (!overrides[primitive.id] && primitive.type === type);
+  const containers = primitives.filter((primitive) => isType(primitive, 'container'));
+  const automaticTexts = primitives.filter((primitive) => isType(primitive, 'text'));
+  const explicitHeadings = primitives.filter(
+    (primitive) => overrides[primitive.id] === 'heading',
+  );
+  const headingPrimitives = [
+    ...explicitHeadings,
+    ...automaticTexts.filter((primitive) => !explicitHeadings.includes(primitive)).slice(0, 1),
+  ];
+  const paragraphPrimitives = [
+    ...primitives.filter((primitive) => overrides[primitive.id] === 'paragraph'),
+    ...automaticTexts.filter((primitive) => primitive.id !== headingPrimitives[0]?.id),
+  ];
+  const texts = [...headingPrimitives, ...paragraphPrimitives].filter(
+    (primitive, index, list) =>
+      list.findIndex((candidate) => candidate.id === primitive.id) === index,
+  );
+  const buttons = primitives.filter((primitive) => isType(primitive, 'button'));
+  const inputs = primitives.filter((primitive) => isType(primitive, 'input'));
+  const images = primitives.filter((primitive) => isType(primitive, 'image'));
+  const navbarPrimitive =
+    primitives.find((primitive) => overrides[primitive.id] === 'navbar') ??
+    primitives.find(
+      (primitive) => !overrides[primitive.id] && isWideTopContainer(primitive),
+    );
+  const footerPrimitive =
+    primitives.find((primitive) => overrides[primitive.id] === 'footer') ??
+    primitives.find(
+      (primitive) => !overrides[primitive.id] && isWideBottomContainer(primitive),
+    );
   const heroContainer = containers.find(
     (primitive) =>
-      primitive.id !== navbarPrimitive?.id &&
+      overrides[primitive.id] === 'hero' ||
+      (primitive.id !== navbarPrimitive?.id &&
       primitive.id !== footerPrimitive?.id &&
       primitive.bounds.width > 0.55 &&
       primitive.bounds.y < 0.48 &&
-      primitive.bounds.height > 0.16,
-  );
-  const cardContainers = containers.filter(
+      primitive.bounds.height > 0.16),
+  ) ?? primitives.find((primitive) => overrides[primitive.id] === 'hero');
+  const cardContainers = primitives.filter(
     (primitive) =>
-      primitive.id !== navbarPrimitive?.id &&
-      primitive.id !== footerPrimitive?.id &&
-      primitive.id !== heroContainer?.id &&
-      primitive.bounds.width >= 0.12 &&
-      primitive.bounds.width <= 0.43 &&
-      primitive.bounds.height >= 0.1 &&
-      primitive.bounds.height <= 0.48,
+      overrides[primitive.id] === 'card' ||
+      (!overrides[primitive.id] &&
+        primitive.type === 'container' &&
+        primitive.id !== navbarPrimitive?.id &&
+        primitive.id !== footerPrimitive?.id &&
+        primitive.id !== heroContainer?.id &&
+        primitive.bounds.width >= 0.12 &&
+        primitive.bounds.width <= 0.43 &&
+        primitive.bounds.height >= 0.1 &&
+        primitive.bounds.height <= 0.48),
   );
 
   const meaningfulText = texts
     .map((primitive) => primitive.content?.trim())
     .filter((content): content is string => Boolean(content && content !== 'Text'));
   const heroExists = Boolean(
-    heroContainer || texts.length > 0 || buttons.length > 0 || images.length > 0,
+    heroContainer ||
+      headingPrimitives.length > 0 ||
+      paragraphPrimitives.length > 0 ||
+      buttons.length > 0 ||
+      images.length > 0,
   );
 
   const navbarNode = navbarPrimitive
@@ -316,23 +352,23 @@ export function inferWebsite(
     : null;
   const heroChildren: WebsiteNode[] = [];
   if (heroExists) {
-    if (texts[0]) {
+    if (headingPrimitives[0]) {
       heroChildren.push(
         node(
           'hero-heading',
           'heading',
-          [texts[0]],
+          [headingPrimitives[0]],
           [],
           meaningfulText[0] ?? 'Build ideas at the speed of a sketch',
         ),
       );
     }
-    if (texts[1]) {
+    if (paragraphPrimitives[0]) {
       heroChildren.push(
         node(
           'hero-copy',
           'paragraph',
-          [texts[1]],
+          [paragraphPrimitives[0]],
           [],
           meaningfulText[1] ?? 'Turn a rough wireframe into a polished page.',
         ),
@@ -378,12 +414,15 @@ export function inferWebsite(
     cardNodes.length > 0
       ? node('card-grid', 'cardGrid', cardContainers.slice(0, 6), cardNodes)
       : null;
+  const explicitFormPrimitive = primitives.find(
+    (primitive) => overrides[primitive.id] === 'form',
+  );
   const formNode =
-    inputs.length > 0
+    inputs.length > 0 || explicitFormPrimitive
       ? node(
           'form',
           'form',
-          inputs,
+          explicitFormPrimitive ? [explicitFormPrimitive, ...inputs] : inputs,
           inputs.map((primitive, index) =>
             node(
               `input-${index + 1}`,
@@ -436,7 +475,10 @@ export function inferWebsite(
     })),
     form: formNode
       ? {
-          fields: inputs.map((input, index) => input.content ?? `Field ${index + 1}`),
+          fields:
+            inputs.length > 0
+              ? inputs.map((input, index) => input.content ?? `Field ${index + 1}`)
+              : ['Your details'],
           button: buttons.at(-1)?.content ?? 'Submit',
         }
       : null,

@@ -613,7 +613,7 @@ button:disabled { color: inherit; cursor: default; opacity: 1; }
 
 .structure-tree ul { margin-left: 22px; padding-left: 15px; border-left: 1px solid #cad4cc; }
 .structure-tree li { position: relative; padding: 5px 0; }
-.structure-tree li > div {
+.structure-node {
   display: flex;
   width: min(360px, 100%);
   align-items: center;
@@ -622,9 +622,31 @@ button:disabled { color: inherit; cursor: default; opacity: 1; }
   border-radius: 8px;
   background: white;
   padding: 9px 11px;
+  color: var(--ink);
+  text-align: left;
 }
+.structure-node:not(:disabled) { cursor: pointer; }
+.structure-node:not(:disabled):hover { border-color: #95ab9b; background: #fbfdfb; }
+.structure-node.selected { border-color: var(--accent); box-shadow: 0 0 0 2px rgb(36 107 71 / 12%); }
+.structure-node:disabled { opacity: 0.72; }
 .structure-tree span { font-size: 11px; font-weight: 650; text-transform: capitalize; }
 .structure-tree small { color: #758078; font-size: 9px; }
+
+.structure-layout { display: grid; grid-template-columns: minmax(0, 1fr) 210px; gap: 18px; align-items: start; }
+.structure-editor { position: sticky; top: 0; grid-column: 2; grid-row: 1; display: grid; gap: 18px; border: 1px solid #d9e0da; border-radius: 10px; background: white; padding: 16px; }
+.structure-editor h3 { margin: 3px 0 5px; font-size: 14px; text-transform: capitalize; }
+.structure-editor p:not(.eyebrow) { margin: 0; color: var(--muted); font-size: 10px; line-height: 1.5; }
+.structure-editor label { display: grid; gap: 6px; color: var(--muted); font-size: 9px; font-weight: 650; }
+.structure-editor select { width: 100%; min-width: 0; border: 1px solid #cdd7cf; border-radius: 7px; background: white; padding: 8px; color: var(--ink); font: inherit; }
+.structure-tree { grid-column: 1; grid-row: 1; }
+
+@media (max-width: 900px) {
+  .structure-layout { grid-template-columns: 1fr; }
+  .structure-editor,
+  .structure-tree { grid-column: 1; }
+  .structure-editor { position: static; grid-row: 1; }
+  .structure-tree { grid-row: 2; }
+}
 
 .code-stage { display: grid; grid-template-rows: auto minmax(0, 1fr); padding: 0; background: #17211b; }
 .code-toolbar { display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #344039; padding: 10px 13px; }

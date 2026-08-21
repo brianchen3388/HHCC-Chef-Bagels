@@ -76,6 +76,9 @@ export type WebsiteNodeType =
   | 'divider'
   | 'footer';
 
+export type StructureOverrideType = Exclude<WebsiteNodeType, 'page'>;
+export type StructureOverrides = Record<string, StructureOverrideType>;
+
 export type WebsiteNode = {
   id: string;
   type: WebsiteNodeType;
