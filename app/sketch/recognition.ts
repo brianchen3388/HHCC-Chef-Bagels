@@ -7,6 +7,7 @@ import {
   type GeneratedWebsite,
   type Point,
   type RecognizedPrimitive,
+  type StructureLayout,
   type StructureOverrides,
   type WebsiteNode,
   type WebsiteNodeType,
@@ -63,7 +64,6 @@ function isDiagonal(item: CanvasItem) {
 function framePrimitive(
   item: Extract<CanvasItem, { kind: 'frame' }>,
   items: CanvasItem[],
-  consumed: Set<string>,
 ): RecognizedPrimitive {
   const bounds = getCanvasItemBounds(item);
   const aspect = bounds.width / bounds.height;
@@ -76,10 +76,9 @@ function framePrimitive(
   const internalText = internalItems.find((candidate) => candidate.kind === 'text');
 
   if (diagonals.length >= 2) {
-    diagonals.forEach((diagonal) => consumed.add(diagonal.id));
     return {
       id: `primitive-${item.id}`,
-      sourceItemIds: [item.id, ...diagonals.map((diagonal) => diagonal.id)],
+      sourceItemIds: [item.id],
       type: 'image',
       bounds,
       confidence: 0.97,
@@ -88,12 +87,9 @@ function framePrimitive(
   }
 
   if (bounds.width < 0.27 && bounds.height < 0.13 && aspect > 1.5) {
-    if (internalText) {
-      consumed.add(internalText.id);
-    }
     return {
       id: `primitive-${item.id}`,
-      sourceItemIds: [item.id, ...(internalText ? [internalText.id] : [])],
+      sourceItemIds: [item.id],
       type: 'button',
       bounds,
       confidence: internalText ? 0.96 : 0.82,
@@ -108,12 +104,9 @@ function framePrimitive(
     bounds.height < 0.105 &&
     aspect > 3
   ) {
-    if (internalText) {
-      consumed.add(internalText.id);
-    }
     return {
       id: `primitive-${item.id}`,
-      sourceItemIds: [item.id, ...(internalText ? [internalText.id] : [])],
+      sourceItemIds: [item.id],
       type: 'input',
       bounds,
       confidence: internalText ? 0.94 : 0.79,
@@ -174,26 +167,24 @@ function recognizePen(
   return {
     id: `primitive-${item.id}`,
     sourceItemIds: [item.id],
-    type: 'unknown',
+    type: 'image',
     bounds,
-    confidence: closed || horizontal ? 0.48 : 0.32,
+    confidence: closed || horizontal ? 0.48 : 0.38,
     manuallyCorrected: false,
   };
 }
 
 export function recognizeCanvas(items: CanvasItem[]) {
-  const consumed = new Set<string>();
   const primitives: RecognizedPrimitive[] = [];
 
   items
     .filter((item) => item.kind === 'frame')
     .forEach((item) => {
-      primitives.push(framePrimitive(item, items, consumed));
-      consumed.add(item.id);
+      primitives.push(framePrimitive(item, items));
     });
 
   items.forEach((item) => {
-    if (consumed.has(item.id)) {
+    if (item.kind === 'frame') {
       return;
     }
 
@@ -216,11 +207,11 @@ export function recognizeCanvas(items: CanvasItem[]) {
       primitives.push({
         id: `primitive-${item.id}`,
         sourceItemIds: [item.id],
-        type: horizontal ? 'text' : 'unknown',
+        type: horizontal ? 'text' : 'divider',
         bounds: horizontal
           ? { ...bounds, height: Math.max(bounds.height, 0.028) }
           : bounds,
-        confidence: horizontal ? 0.88 : 0.42,
+        confidence: horizontal ? 0.88 : 0.7,
         manuallyCorrected: false,
       });
       return;
@@ -234,29 +225,6 @@ export function recognizeCanvas(items: CanvasItem[]) {
       ? first.bounds.x - second.bounds.x
       : first.bounds.y - second.bounds.y,
   );
-}
-
-function node(
-  id: string,
-  type: WebsiteNodeType,
-  primitives: RecognizedPrimitive[],
-  children: WebsiteNode[] = [],
-  content?: string,
-): WebsiteNode {
-  const bounds = primitives[0]?.bounds ?? pageBounds;
-  return {
-    id,
-    type,
-    bounds,
-    confidence:
-      primitives.length === 0
-        ? 0.75
-        : primitives.reduce((sum, primitive) => sum + primitive.confidence, 0) /
-          primitives.length,
-    children,
-    content,
-    sourcePrimitiveIds: primitives.map((primitive) => primitive.id),
-  };
 }
 
 function isWideTopContainer(primitive: RecognizedPrimitive) {
@@ -279,168 +247,157 @@ function isWideBottomContainer(primitive: RecognizedPrimitive) {
 export function inferWebsite(
   primitives: RecognizedPrimitive[],
   overrides: StructureOverrides = {},
+  layout: StructureLayout = {
+    parentByPrimitiveId: {},
+    orderByParentId: {},
+  },
 ): GeneratedWebsite {
-  const isType = (primitive: RecognizedPrimitive, type: string) =>
-    overrides[primitive.id] === type ||
-    (!overrides[primitive.id] && primitive.type === type);
-  const containers = primitives.filter((primitive) => isType(primitive, 'container'));
-  const automaticTexts = primitives.filter((primitive) => isType(primitive, 'text'));
-  const explicitHeadings = primitives.filter(
-    (primitive) => overrides[primitive.id] === 'heading',
+  const sorted = [...primitives].sort((first, second) =>
+    first.bounds.y === second.bounds.y
+      ? first.bounds.x - second.bounds.x
+      : first.bounds.y - second.bounds.y,
   );
-  const headingPrimitives = [
-    ...explicitHeadings,
-    ...automaticTexts.filter((primitive) => !explicitHeadings.includes(primitive)).slice(0, 1),
-  ];
-  const paragraphPrimitives = [
-    ...primitives.filter((primitive) => overrides[primitive.id] === 'paragraph'),
-    ...automaticTexts.filter((primitive) => primitive.id !== headingPrimitives[0]?.id),
-  ];
-  const texts = [...headingPrimitives, ...paragraphPrimitives].filter(
-    (primitive, index, list) =>
-      list.findIndex((candidate) => candidate.id === primitive.id) === index,
-  );
-  const buttons = primitives.filter((primitive) => isType(primitive, 'button'));
-  const inputs = primitives.filter((primitive) => isType(primitive, 'input'));
-  const images = primitives.filter((primitive) => isType(primitive, 'image'));
-  const navbarPrimitive =
-    primitives.find((primitive) => overrides[primitive.id] === 'navbar') ??
-    primitives.find(
-      (primitive) => !overrides[primitive.id] && isWideTopContainer(primitive),
-    );
-  const footerPrimitive =
-    primitives.find((primitive) => overrides[primitive.id] === 'footer') ??
-    primitives.find(
-      (primitive) => !overrides[primitive.id] && isWideBottomContainer(primitive),
-    );
-  const heroContainer = containers.find(
-    (primitive) =>
-      overrides[primitive.id] === 'hero' ||
-      (primitive.id !== navbarPrimitive?.id &&
-      primitive.id !== footerPrimitive?.id &&
+  const containers = primitives.filter((primitive) => primitive.type === 'container');
+  const firstTextId = sorted.find((primitive) => primitive.type === 'text')?.id;
+
+  function automaticType(primitive: RecognizedPrimitive): WebsiteNodeType {
+    if (primitive.type === 'button' || primitive.type === 'input') return primitive.type;
+    if (primitive.type === 'image' || primitive.type === 'divider') return primitive.type;
+    if (primitive.type === 'text') {
+      return primitive.id === firstTextId ? 'heading' : 'paragraph';
+    }
+    if (isWideTopContainer(primitive)) return 'navbar';
+    if (isWideBottomContainer(primitive)) return 'footer';
+    if (
       primitive.bounds.width > 0.55 &&
       primitive.bounds.y < 0.48 &&
-      primitive.bounds.height > 0.16),
-  ) ?? primitives.find((primitive) => overrides[primitive.id] === 'hero');
-  const cardContainers = primitives.filter(
-    (primitive) =>
-      overrides[primitive.id] === 'card' ||
-      (!overrides[primitive.id] &&
-        primitive.type === 'container' &&
-        primitive.id !== navbarPrimitive?.id &&
-        primitive.id !== footerPrimitive?.id &&
-        primitive.id !== heroContainer?.id &&
-        primitive.bounds.width >= 0.12 &&
-        primitive.bounds.width <= 0.43 &&
-        primitive.bounds.height >= 0.1 &&
-        primitive.bounds.height <= 0.48),
-  );
-
-  const meaningfulText = texts
-    .map((primitive) => primitive.content?.trim())
-    .filter((content): content is string => Boolean(content && content !== 'Text'));
-  const heroExists = Boolean(
-    heroContainer ||
-      headingPrimitives.length > 0 ||
-      paragraphPrimitives.length > 0 ||
-      buttons.length > 0 ||
-      images.length > 0,
-  );
-
-  const navbarNode = navbarPrimitive
-    ? node('navbar', 'navbar', [navbarPrimitive])
-    : null;
-  const heroChildren: WebsiteNode[] = [];
-  if (heroExists) {
-    if (headingPrimitives[0]) {
-      heroChildren.push(
-        node(
-          'hero-heading',
-          'heading',
-          [headingPrimitives[0]],
-          [],
-          meaningfulText[0] ?? 'Build ideas at the speed of a sketch',
-        ),
-      );
+      primitive.bounds.height > 0.16
+    ) {
+      return 'hero';
     }
-    if (paragraphPrimitives[0]) {
-      heroChildren.push(
-        node(
-          'hero-copy',
-          'paragraph',
-          [paragraphPrimitives[0]],
-          [],
-          meaningfulText[1] ?? 'Turn a rough wireframe into a polished page.',
-        ),
-      );
+    const containedContainers = containers.filter(
+      (candidate) =>
+        candidate.id !== primitive.id &&
+        boundsContain(primitive.bounds, candidate.bounds, 0.01),
+    );
+    if (primitive.bounds.width > 0.35 && containedContainers.length >= 2) {
+      return 'cardGrid';
     }
-    if (buttons[0]) {
-      heroChildren.push(
-        node(
-          'hero-button',
-          'button',
-          [buttons[0]],
-          [],
-          buttons[0].content ?? 'Get started',
-        ),
-      );
+    if (
+      primitive.bounds.width <= 0.43 &&
+      primitive.bounds.height >= 0.1 &&
+      primitive.bounds.height <= 0.48
+    ) {
+      return 'card';
     }
-    if (images[0]) {
-      heroChildren.push(node('hero-image', 'image', [images[0]]));
-    }
+    return 'section';
   }
 
-  const heroNode = heroExists
-    ? node(
-        'hero',
-        'hero',
-        heroContainer ? [heroContainer] : heroChildren.flatMap((child) =>
-          primitives.filter((primitive) => child.sourcePrimitiveIds.includes(primitive.id)),
-        ),
-        heroChildren,
+  function defaultContent(type: WebsiteNodeType, primitive: RecognizedPrimitive) {
+    const supplied = primitive.content?.trim();
+    if (supplied && supplied !== 'Text') return supplied;
+    if (type === 'heading') return 'Build ideas at the speed of a sketch';
+    if (type === 'paragraph') return 'A clear, purposeful section generated from your wireframe.';
+    if (type === 'button') return 'Get started';
+    if (type === 'input') return 'Your details';
+    if (type === 'navbar') return 'Studio';
+    if (type === 'footer') return '© 2026 Your studio';
+    if (type === 'card') return 'Feature';
+    return undefined;
+  }
+
+  const nodes = new Map<string, WebsiteNode>();
+  sorted.forEach((primitive) => {
+    const type = overrides[primitive.id] ?? automaticType(primitive);
+    nodes.set(`node-${primitive.id}`, {
+      id: `node-${primitive.id}`,
+      type,
+      bounds: primitive.bounds,
+      confidence: overrides[primitive.id] ? 1 : primitive.confidence,
+      children: [],
+      content: defaultContent(type, primitive),
+      sourcePrimitiveIds: [primitive.id],
+    });
+  });
+
+  const canContain = (type: WebsiteNodeType) =>
+    ['navbar', 'hero', 'section', 'cardGrid', 'card', 'form', 'footer'].includes(type);
+  const parentByNodeId: Record<string, string> = {};
+
+  nodes.forEach((current) => {
+    const automaticParent = [...nodes.values()]
+      .filter(
+        (candidate) =>
+          candidate.id !== current.id &&
+          canContain(candidate.type) &&
+          boundsContain(candidate.bounds, current.bounds, 0.008),
       )
-    : null;
+      .sort(
+        (first, second) =>
+          first.bounds.width * first.bounds.height -
+          second.bounds.width * second.bounds.height,
+      )[0];
+    parentByNodeId[current.id] = automaticParent?.id ?? 'page';
+  });
 
-  const cardNodes = cardContainers.slice(0, 6).map((primitive, index) =>
-    node(
-      `card-${index + 1}`,
-      'card',
-      [primitive],
-      [],
-      `Feature ${index + 1}`,
-    ),
-  );
-  const cardGridNode =
-    cardNodes.length > 0
-      ? node('card-grid', 'cardGrid', cardContainers.slice(0, 6), cardNodes)
-      : null;
-  const explicitFormPrimitive = primitives.find(
-    (primitive) => overrides[primitive.id] === 'form',
-  );
-  const formNode =
-    inputs.length > 0 || explicitFormPrimitive
-      ? node(
-          'form',
-          'form',
-          explicitFormPrimitive ? [explicitFormPrimitive, ...inputs] : inputs,
-          inputs.map((primitive, index) =>
-            node(
-              `input-${index + 1}`,
-              'input',
-              [primitive],
-              [],
-              primitive.content ?? `Field ${index + 1}`,
-            ),
-          ),
-        )
-      : null;
-  const footerNode = footerPrimitive
-    ? node('footer', 'footer', [footerPrimitive], [], '© 2026 Your studio')
-    : null;
+  function createsCycle(sourceId: string, targetId: string) {
+    let cursor = targetId;
+    const visited = new Set<string>();
+    while (cursor !== 'page' && !visited.has(cursor)) {
+      if (cursor === sourceId) return true;
+      visited.add(cursor);
+      cursor = parentByNodeId[cursor] ?? 'page';
+    }
+    return false;
+  }
 
-  const children = [navbarNode, heroNode, cardGridNode, formNode, footerNode].filter(
-    (child): child is WebsiteNode => Boolean(child),
-  );
+  Object.entries(layout.parentByPrimitiveId).forEach(([primitiveId, targetId]) => {
+    const sourceId = `node-${primitiveId}`;
+    const target = nodes.get(targetId);
+    if (
+      nodes.has(sourceId) &&
+      (targetId === 'page' || (target && canContain(target.type))) &&
+      !createsCycle(sourceId, targetId)
+    ) {
+      parentByNodeId[sourceId] = targetId;
+    }
+  });
+
+  const childrenByParent = new Map<string, WebsiteNode[]>();
+  nodes.forEach((current) => {
+    const parentId = parentByNodeId[current.id] ?? 'page';
+    const siblings = childrenByParent.get(parentId) ?? [];
+    siblings.push(current);
+    childrenByParent.set(parentId, siblings);
+  });
+
+  const sortChildren = (parentId: string, children: WebsiteNode[]) => {
+    const manualOrder = layout.orderByParentId[parentId] ?? [];
+    return children.sort((first, second) => {
+      const firstIndex = manualOrder.indexOf(first.sourcePrimitiveIds[0]);
+      const secondIndex = manualOrder.indexOf(second.sourcePrimitiveIds[0]);
+      if (firstIndex >= 0 || secondIndex >= 0) {
+        if (firstIndex < 0) return 1;
+        if (secondIndex < 0) return -1;
+        return firstIndex - secondIndex;
+      }
+      return first.bounds.y === second.bounds.y
+        ? first.bounds.x - second.bounds.x
+        : first.bounds.y - second.bounds.y;
+    });
+  };
+
+  const attachChildren = (current: WebsiteNode) => {
+    current.children = sortChildren(
+      current.id,
+      childrenByParent.get(current.id) ?? [],
+    );
+    current.children.forEach(attachChildren);
+  };
+  nodes.forEach((current) => {
+    if (canContain(current.type)) attachChildren(current);
+  });
+
   const tree: WebsiteNode = {
     id: 'page',
     type: 'page',
@@ -450,40 +407,12 @@ export function inferWebsite(
         ? primitives.reduce((sum, primitive) => sum + primitive.confidence, 0) /
           primitives.length
         : 0,
-    children,
+    children: sortChildren('page', childrenByParent.get('page') ?? []),
     sourcePrimitiveIds: primitives.map((primitive) => primitive.id),
   };
+  tree.children.forEach(attachChildren);
 
-  return {
-    tree,
-    navbar: navbarNode
-      ? { brand: meaningfulText[0] ?? 'Studio', links: ['Work', 'About', 'Contact'] }
-      : null,
-    hero: heroNode
-      ? {
-          heading: meaningfulText[navbarNode ? 1 : 0] ?? 'Build ideas at the speed of a sketch',
-          body:
-            meaningfulText[navbarNode ? 2 : 1] ??
-            'Turn a rough wireframe into a thoughtful, responsive website.',
-          cta: buttons[0]?.content ?? (buttons.length > 0 ? 'Get started' : null),
-          showImage: images.length > 0,
-        }
-      : null,
-    cards: cardNodes.map((card, index) => ({
-      title: card.content ?? `Feature ${index + 1}`,
-      body: 'A clear, purposeful section generated from your wireframe.',
-    })),
-    form: formNode
-      ? {
-          fields:
-            inputs.length > 0
-              ? inputs.map((input, index) => input.content ?? `Field ${index + 1}`)
-              : ['Your details'],
-          button: buttons.at(-1)?.content ?? 'Submit',
-        }
-      : null,
-    footer: footerNode ? { text: footerNode.content ?? '© 2026 Your studio' } : null,
-  };
+  return { tree };
 }
 
 export function confidenceLabel(confidence: number) {

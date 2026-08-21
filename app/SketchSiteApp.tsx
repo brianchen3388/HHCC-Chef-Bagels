@@ -7,6 +7,7 @@ import type {
   CanvasItem,
   GeneratedWebsite,
   RecognizedPrimitive,
+  StructureLayout,
   StructureOverrides,
   StructureOverrideType,
   WebsiteNode,
@@ -33,6 +34,8 @@ const outputViews: Array<{ id: OutputView; label: string }> = [
 const correctionTypes: Array<{ value: StructureOverrideType; label: string }> = [
   { value: 'navbar', label: 'Navbar' },
   { value: 'hero', label: 'Hero section' },
+  { value: 'section', label: 'Section' },
+  { value: 'cardGrid', label: 'Card grid' },
   { value: 'card', label: 'Card' },
   { value: 'heading', label: 'Heading' },
   { value: 'paragraph', label: 'Paragraph' },
@@ -40,8 +43,62 @@ const correctionTypes: Array<{ value: StructureOverrideType; label: string }> = 
   { value: 'button', label: 'Button' },
   { value: 'input', label: 'Input' },
   { value: 'form', label: 'Form' },
+  { value: 'divider', label: 'Divider' },
   { value: 'footer', label: 'Footer' },
 ];
+
+const containerTypes = new Set<WebsiteNode['type']>([
+  'navbar',
+  'hero',
+  'section',
+  'cardGrid',
+  'card',
+  'form',
+  'footer',
+]);
+
+function GeneratedNode({ node, insideForm = false }: { node: WebsiteNode; insideForm?: boolean }) {
+  const childIsInsideForm = insideForm || node.type === 'form';
+  const children = node.children.map((child) => (
+    <GeneratedNode insideForm={childIsInsideForm} key={child.id} node={child} />
+  ));
+
+  if (node.type === 'navbar') {
+    return (
+      <nav className="generated-nav">
+        <strong>{node.content ?? 'Studio'}</strong>
+        <div className="generated-nav-content">{children}</div>
+      </nav>
+    );
+  }
+  if (node.type === 'hero') return <section className="generated-hero">{children}</section>;
+  if (node.type === 'section') return <section className="generated-section">{children}</section>;
+  if (node.type === 'cardGrid') {
+    return <section className="generated-features"><div className="generated-card-grid">{children}</div></section>;
+  }
+  if (node.type === 'card') {
+    return (
+      <article className="generated-card">
+        {children.length > 0 ? children : <><h2>{node.content ?? 'Feature'}</h2><p>Generated from your wireframe.</p></>}
+      </article>
+    );
+  }
+  if (node.type === 'heading') return <h1>{node.content ?? 'Your headline'}</h1>;
+  if (node.type === 'paragraph') return <p>{node.content ?? 'Your supporting copy.'}</p>;
+  if (node.type === 'image') {
+    return <div aria-label="Generated visual placeholder" className="generated-image" role="img"><span>Image</span></div>;
+  }
+  if (node.type === 'button') return <button className="generated-button" type={insideForm ? 'submit' : 'button'}>{node.content ?? 'Get started'}</button>;
+  if (node.type === 'input') {
+    return <label className="generated-field">{node.content ?? 'Your details'}<input /></label>;
+  }
+  if (node.type === 'form') {
+    return <form className="generated-form" onSubmit={(event) => event.preventDefault()}>{children}</form>;
+  }
+  if (node.type === 'divider') return <hr className="generated-divider" />;
+  if (node.type === 'footer') return <footer>{children.length > 0 ? children : node.content}</footer>;
+  return null;
+}
 
 function GeneratedPreview({ site }: { site: GeneratedWebsite }) {
   const hasContent = site.tree.children.length > 0;
@@ -61,71 +118,7 @@ function GeneratedPreview({ site }: { site: GeneratedWebsite }) {
 
   return (
     <div className="generated-site-preview">
-      {site.navbar && (
-        <nav className="generated-nav">
-          <strong>{site.navbar.brand}</strong>
-          <div>
-            {site.navbar.links.map((link) => (
-              <a href="#generated-content" key={link}>{link}</a>
-            ))}
-          </div>
-          <button aria-label="Open menu" type="button">Menu</button>
-        </nav>
-      )}
-
-      {site.hero && (
-        <section className="generated-hero" id="generated-content">
-          <div>
-            <p className="generated-kicker">Made from your sketch</p>
-            <h1>{site.hero.heading}</h1>
-            <p>{site.hero.body}</p>
-            {site.hero.cta && <a href="#generated-form">{site.hero.cta}</a>}
-          </div>
-          {site.hero.showImage && (
-            <div
-              aria-label="Generated hero visual placeholder"
-              className="generated-image"
-              role="img"
-            >
-              <span>Image</span>
-            </div>
-          )}
-        </section>
-      )}
-
-      {site.cards.length > 0 && (
-        <section className="generated-features">
-          <div className="generated-card-grid">
-            {site.cards.map((card, index) => (
-              <article key={`${card.title}-${index}`}>
-                <span>{String(index + 1).padStart(2, '0')}</span>
-                <h2>{card.title}</h2>
-                <p>{card.body}</p>
-              </article>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {site.form && (
-        <section className="generated-form-section" id="generated-form">
-          <div>
-            <p className="generated-kicker">Get in touch</p>
-            <h2>Let&apos;s build something clear.</h2>
-          </div>
-          <form onSubmit={(event) => event.preventDefault()}>
-            {site.form.fields.map((field, index) => (
-              <label key={`${field}-${index}`}>
-                {field}
-                <input name={`field-${index + 1}`} />
-              </label>
-            ))}
-            <button type="submit">{site.form.button}</button>
-          </form>
-        </section>
-      )}
-
-      {site.footer && <footer>{site.footer.text}</footer>}
+      {site.tree.children.map((node) => <GeneratedNode key={node.id} node={node} />)}
     </div>
   );
 }
@@ -190,6 +183,23 @@ function findStructureNode(node: WebsiteNode, sourceIds: string[]): WebsiteNode 
   return sameSources ? node : null;
 }
 
+function findParentNode(node: WebsiteNode, childId: string): WebsiteNode | null {
+  if (node.children.some((child) => child.id === childId)) return node;
+  for (const child of node.children) {
+    const match = findParentNode(child, childId);
+    if (match) return match;
+  }
+  return null;
+}
+
+function flattenStructure(node: WebsiteNode): WebsiteNode[] {
+  return [node, ...node.children.flatMap(flattenStructure)];
+}
+
+function descendantIds(node: WebsiteNode) {
+  return new Set(node.children.flatMap((child) => flattenStructure(child).map((item) => item.id)));
+}
+
 type OutputPanelProps = {
   codeView: CodeView;
   copiedLabel: string;
@@ -203,6 +213,9 @@ type OutputPanelProps = {
   site: GeneratedWebsite;
   onCopy: () => void;
   onStructureOverride: (sourceIds: string[], type: StructureOverrideType | 'automatic') => void;
+  onStructureParent: (primitiveId: string, parentId: string) => void;
+  onStructureMove: (primitiveId: string, direction: -1 | 1) => void;
+  layout: StructureLayout;
   overrides: StructureOverrides;
 };
 
@@ -212,9 +225,12 @@ function OutputPanel({
   cssCode,
   onCopy,
   onStructureOverride,
+  onStructureParent,
+  onStructureMove,
   outputView,
   previewSize,
   primitives,
+  layout,
   overrides,
   reactCode,
   setCodeView,
@@ -226,6 +242,27 @@ function OutputPanel({
   const selectedOverride = selectedStructureNode?.sourcePrimitiveIds
     .map((id) => overrides[id])
     .find(Boolean);
+  const selectedPrimitiveId = selectedStructureNode?.sourcePrimitiveIds[0];
+  const currentParent = selectedStructureNode
+    ? findParentNode(site.tree, selectedStructureNode.id)
+    : null;
+  const currentSiblingIndex = currentParent && selectedStructureNode
+    ? currentParent.children.findIndex((child) => child.id === selectedStructureNode.id)
+    : -1;
+  const excludedParentIds = selectedStructureNode
+    ? new Set([selectedStructureNode.id, ...descendantIds(selectedStructureNode)])
+    : new Set<string>();
+  const parentOptions = flattenStructure(site.tree).filter(
+    (node) =>
+      (node.type === 'page' || containerTypes.has(node.type)) &&
+      !excludedParentIds.has(node.id),
+  );
+  const manualParentId = selectedPrimitiveId
+    ? layout.parentByPrimitiveId[selectedPrimitiveId]
+    : undefined;
+  const parentSelection = manualParentId && parentOptions.some((node) => node.id === manualParentId)
+    ? manualParentId
+    : 'automatic';
 
   return (
     <section className="panel preview-panel" aria-labelledby="preview-heading">
@@ -275,8 +312,8 @@ function OutputPanel({
                   <h3>{selectedStructureNode ? selectedStructureNode.type : 'Choose an element'}</h3>
                   <p>
                     {selectedStructureNode
-                      ? 'Change this element when the automatic guess is not right.'
-                      : 'Click any element in the tree to correct its type.'}
+                      ? 'Change its type, place it inside another element, or adjust its order.'
+                      : 'Click any element in the tree to edit its role and placement.'}
                   </p>
                 </div>
                 <label>
@@ -298,6 +335,39 @@ function OutputPanel({
                     ))}
                   </select>
                 </label>
+                <label>
+                  Place inside
+                  <select
+                    disabled={!selectedPrimitiveId}
+                    onChange={(event) => {
+                      if (selectedPrimitiveId) onStructureParent(selectedPrimitiveId, event.target.value);
+                    }}
+                    value={parentSelection}
+                  >
+                    <option value="automatic">Automatic ({currentParent?.type ?? 'page'})</option>
+                    {parentOptions.map((parent) => (
+                      <option key={parent.id} value={parent.id}>
+                        {parent.type === 'page' ? 'Page (top level)' : `${parent.type} · ${parent.content ?? 'element'}`}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <div className="structure-order" aria-label="Element order">
+                  <button
+                    disabled={!selectedPrimitiveId || currentSiblingIndex <= 0}
+                    onClick={() => selectedPrimitiveId && onStructureMove(selectedPrimitiveId, -1)}
+                    type="button"
+                  >
+                    Move up
+                  </button>
+                  <button
+                    disabled={!selectedPrimitiveId || !currentParent || currentSiblingIndex >= currentParent.children.length - 1}
+                    onClick={() => selectedPrimitiveId && onStructureMove(selectedPrimitiveId, 1)}
+                    type="button"
+                  >
+                    Move down
+                  </button>
+                </div>
               </div>
               <ul className="structure-tree">
                 <StructureBranch
@@ -360,6 +430,10 @@ export default function SketchSiteApp() {
   const [canvasItems, setCanvasItems] = useState<CanvasItem[]>([]);
   const [primitives, setPrimitives] = useState<RecognizedPrimitive[]>([]);
   const [structureOverrides, setStructureOverrides] = useState<StructureOverrides>({});
+  const [structureLayout, setStructureLayout] = useState<StructureLayout>({
+    parentByPrimitiveId: {},
+    orderByParentId: {},
+  });
   const [recognitionStatus, setRecognitionStatus] =
     useState<RecognitionStatus>('idle');
   const [previewSize, setPreviewSize] = useState<PreviewSize>('desktop');
@@ -388,8 +462,8 @@ export default function SketchSiteApp() {
   }, [canvasItems]);
 
   const site = useMemo(
-    () => inferWebsite(primitives, structureOverrides),
-    [primitives, structureOverrides],
+    () => inferWebsite(primitives, structureOverrides, structureLayout),
+    [primitives, structureOverrides, structureLayout],
   );
   const reactCode = useMemo(() => generateReact(site), [site]);
   const cssCode = useMemo(() => generateCss(), []);
@@ -401,7 +475,36 @@ export default function SketchSiteApp() {
       recognitionRevision.current += 1;
       setPrimitives([]);
       setStructureOverrides({});
+      setStructureLayout({ parentByPrimitiveId: {}, orderByParentId: {} });
     }
+  }
+
+  function handleStructureParent(primitiveId: string, parentId: string) {
+    setStructureLayout((current) => {
+      const parentByPrimitiveId = { ...current.parentByPrimitiveId };
+      if (parentId === 'automatic') {
+        delete parentByPrimitiveId[primitiveId];
+      } else {
+        parentByPrimitiveId[primitiveId] = parentId;
+      }
+      return { ...current, parentByPrimitiveId };
+    });
+  }
+
+  function handleStructureMove(primitiveId: string, direction: -1 | 1) {
+    const selectedNode = findStructureNode(site.tree, [primitiveId]);
+    if (!selectedNode) return;
+    const parent = findParentNode(site.tree, selectedNode.id);
+    if (!parent) return;
+    const siblingIds = parent.children.map((child) => child.sourcePrimitiveIds[0]);
+    const index = siblingIds.indexOf(primitiveId);
+    const targetIndex = index + direction;
+    if (index < 0 || targetIndex < 0 || targetIndex >= siblingIds.length) return;
+    [siblingIds[index], siblingIds[targetIndex]] = [siblingIds[targetIndex], siblingIds[index]];
+    setStructureLayout((current) => ({
+      ...current,
+      orderByParentId: { ...current.orderByParentId, [parent.id]: siblingIds },
+    }));
   }
 
   function handleStructureOverride(
@@ -484,9 +587,12 @@ export default function SketchSiteApp() {
           cssCode={cssCode}
           onCopy={copyCode}
           onStructureOverride={handleStructureOverride}
+          onStructureParent={handleStructureParent}
+          onStructureMove={handleStructureMove}
           outputView={outputView}
           previewSize={previewSize}
           primitives={primitives}
+          layout={structureLayout}
           overrides={structureOverrides}
           reactCode={reactCode}
           setCodeView={setCodeView}

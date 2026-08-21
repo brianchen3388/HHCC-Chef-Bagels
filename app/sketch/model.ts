@@ -48,7 +48,7 @@ export type PrimitiveType =
   | 'image'
   | 'button'
   | 'input'
-  | 'unknown';
+  | 'divider';
 
 export type RecognizedPrimitive = {
   id: string;
@@ -79,6 +79,11 @@ export type WebsiteNodeType =
 export type StructureOverrideType = Exclude<WebsiteNodeType, 'page'>;
 export type StructureOverrides = Record<string, StructureOverrideType>;
 
+export type StructureLayout = {
+  parentByPrimitiveId: Record<string, string>;
+  orderByParentId: Record<string, string[]>;
+};
+
 export type WebsiteNode = {
   id: string;
   type: WebsiteNodeType;
@@ -91,27 +96,6 @@ export type WebsiteNode = {
 
 export type GeneratedWebsite = {
   tree: WebsiteNode;
-  navbar: null | {
-    brand: string;
-    links: string[];
-  };
-  hero: null | {
-    heading: string;
-    body: string;
-    cta: string | null;
-    showImage: boolean;
-  };
-  cards: Array<{
-    title: string;
-    body: string;
-  }>;
-  form: null | {
-    fields: string[];
-    button: string;
-  };
-  footer: null | {
-    text: string;
-  };
 };
 
 export function clamp(value: number, minimum = 0, maximum = 1) {

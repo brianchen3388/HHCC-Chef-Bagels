@@ -1,4 +1,4 @@
-import type { GeneratedWebsite } from './model';
+import type { GeneratedWebsite, WebsiteNode } from './model';
 
 function jsxText(value: string) {
   return value
@@ -9,82 +9,93 @@ function jsxText(value: string) {
     .replaceAll('}', '&#125;');
 }
 
+function renderNode(node: WebsiteNode, depth: number, insideForm = false): string[] {
+  const pad = '  '.repeat(depth);
+  const content = jsxText(node.content ?? '');
+  const childIsInsideForm = insideForm || node.type === 'form';
+  const children = node.children.flatMap((child) =>
+    renderNode(child, depth + 1, childIsInsideForm),
+  );
+
+  if (node.type === 'navbar') {
+    return [
+      `${pad}<nav className="site-nav">`,
+      `${pad}  <a className="brand" href="#">${content || 'Studio'}</a>`,
+      `${pad}  <div className="nav-content">`,
+      ...node.children.flatMap((child) => renderNode(child, depth + 2, childIsInsideForm)),
+      `${pad}  </div>`,
+      `${pad}</nav>`,
+    ];
+  }
+  if (node.type === 'hero') {
+    return [`${pad}<section className="hero">`, ...children, `${pad}</section>`];
+  }
+  if (node.type === 'section') {
+    return [`${pad}<section className="section">`, ...children, `${pad}</section>`];
+  }
+  if (node.type === 'cardGrid') {
+    return [
+      `${pad}<section className="features">`,
+      `${pad}  <div className="card-grid">`,
+      ...node.children.flatMap((child) => renderNode(child, depth + 2, childIsInsideForm)),
+      `${pad}  </div>`,
+      `${pad}</section>`,
+    ];
+  }
+  if (node.type === 'card') {
+    return [
+      `${pad}<article className="card">`,
+      ...(node.children.length > 0
+        ? children
+        : [
+            `${pad}  <h2>${content || 'Feature'}</h2>`,
+            `${pad}  <p>A clear, purposeful section generated from your wireframe.</p>`,
+          ]),
+      `${pad}</article>`,
+    ];
+  }
+  if (node.type === 'heading') return [`${pad}<h1>${content || 'Your headline'}</h1>`];
+  if (node.type === 'paragraph') return [`${pad}<p>${content || 'Your supporting copy.'}</p>`];
+  if (node.type === 'image') {
+    return [`${pad}<div className="site-image" role="img" aria-label="Website visual" />`];
+  }
+  if (node.type === 'button') {
+    return [`${pad}<button className="primary-button" type="${insideForm ? 'submit' : 'button'}">${content || 'Get started'}</button>`];
+  }
+  if (node.type === 'input') {
+    const inputId = node.id.replace(/[^a-zA-Z0-9-]/g, '');
+    return [
+      `${pad}<label htmlFor="${inputId}">${content || 'Your details'}</label>`,
+      `${pad}<input id="${inputId}" name="${inputId}" />`,
+    ];
+  }
+  if (node.type === 'form') {
+    return [`${pad}<form className="contact-form">`, ...children, `${pad}</form>`];
+  }
+  if (node.type === 'divider') return [`${pad}<hr />`];
+  if (node.type === 'footer') {
+    return [
+      `${pad}<footer>`,
+      ...(node.children.length > 0 ? children : [`${pad}  ${content || '© 2026 Your studio'}`]),
+      `${pad}</footer>`,
+    ];
+  }
+  return children;
+}
+
 export function generateReact(site: GeneratedWebsite) {
-  const lines = [
+  return [
     "import './generated-site.css';",
     '',
     'export default function GeneratedSite() {',
     '  return (',
     '    <main className="site">',
-  ];
-
-  if (site.navbar) {
-    lines.push(
-      '      <nav className="site-nav">',
-      `        <a className="brand" href="#">${jsxText(site.navbar.brand)}</a>`,
-      '        <div className="nav-links">',
-      ...site.navbar.links.map(
-        (link) => `          <a href="#">${jsxText(link)}</a>`,
-      ),
-      '        </div>',
-      '      </nav>',
-    );
-  }
-
-  if (site.hero) {
-    lines.push(
-      '      <section className="hero">',
-      '        <div className="hero-copy">',
-      `          <h1>${jsxText(site.hero.heading)}</h1>`,
-      `          <p>${jsxText(site.hero.body)}</p>`,
-    );
-    if (site.hero.cta) {
-      lines.push(`          <a className="primary-button" href="#">${jsxText(site.hero.cta)}</a>`);
-    }
-    lines.push('        </div>');
-    if (site.hero.showImage) {
-      lines.push(
-        '        <div className="hero-image" role="img" aria-label="Website hero visual" />',
-      );
-    }
-    lines.push('      </section>');
-  }
-
-  if (site.cards.length > 0) {
-    lines.push(
-      '      <section className="features">',
-      '        <div className="card-grid">',
-      ...site.cards.flatMap((card) => [
-        '          <article className="card">',
-        `            <h2>${jsxText(card.title)}</h2>`,
-        `            <p>${jsxText(card.body)}</p>`,
-        '          </article>',
-      ]),
-      '        </div>',
-      '      </section>',
-    );
-  }
-
-  if (site.form) {
-    lines.push(
-      '      <section className="contact">',
-      '        <form>',
-      ...site.form.fields.flatMap((field, index) => [
-        `          <label htmlFor="field-${index + 1}">${jsxText(field)}</label>`,
-        `          <input id="field-${index + 1}" name="field-${index + 1}" />`,
-      ]),
-      `          <button type="submit">${jsxText(site.form.button)}</button>`,
-      '        </form>',
-      '      </section>',
-    );
-  }
-
-  if (site.footer) {
-    lines.push(`      <footer>${jsxText(site.footer.text)}</footer>`);
-  }
-
-  lines.push('    </main>', '  );', '}', '');
-  return lines.join('\n');
+    ...site.tree.children.flatMap((child) => renderNode(child, 3)),
+    '    </main>',
+    '  );',
+    '}',
+    '',
+  ].join('\n');
 }
 
 export function generateCss() {
@@ -98,27 +109,27 @@ export function generateCss() {
 * { box-sizing: border-box; }
 body { margin: 0; color: var(--ink); font-family: Inter, sans-serif; }
 .site { min-height: 100vh; background: white; }
-.site-nav { display: flex; align-items: center; justify-content: space-between; padding: 24px 6vw; }
+.site-nav { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 24px 6vw; }
 .brand { color: var(--ink); font-weight: 750; text-decoration: none; }
-.nav-links { display: flex; gap: 24px; }
-.nav-links a { color: var(--muted); text-decoration: none; }
-.hero { display: grid; grid-template-columns: 1.05fr 0.95fr; align-items: center; gap: 7vw; padding: 80px 6vw 96px; }
+.nav-content { display: flex; align-items: center; gap: 18px; }
+.hero { display: flex; flex-wrap: wrap; align-items: center; gap: 32px; padding: 80px 6vw 96px; }
 .hero h1 { max-width: 12ch; margin: 0; font-size: clamp(44px, 7vw, 88px); line-height: 0.96; }
-.hero p { max-width: 52ch; color: var(--muted); line-height: 1.7; }
-.primary-button, form button { display: inline-block; border: 0; border-radius: 10px; background: var(--accent); color: white; padding: 14px 20px; text-decoration: none; }
-.hero-image { min-height: 360px; border-radius: 24px; background: linear-gradient(145deg, #dcecdf, #9fc4ad); }
-.features, .contact { padding: 72px 6vw; background: var(--surface); }
-.card-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+.hero p, .section p { max-width: 52ch; color: var(--muted); line-height: 1.7; }
+.section, .features { padding: 72px 6vw; }
+.features { background: var(--surface); }
+.card-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; }
 .card { border-radius: 18px; background: white; padding: 28px; }
 .card p { color: var(--muted); line-height: 1.6; }
-form { display: grid; max-width: 560px; gap: 10px; }
+.primary-button { display: inline-flex; border: 0; border-radius: 10px; background: var(--accent); color: white; padding: 14px 20px; text-decoration: none; }
+.site-image { flex: 1 1 320px; min-height: 300px; border-radius: 24px; background: linear-gradient(145deg, #dcecdf, #9fc4ad); }
+.contact-form { display: grid; width: min(560px, 100%); gap: 10px; padding: 48px 6vw; }
 input { min-height: 48px; margin-bottom: 12px; border: 1px solid #cdd7cf; border-radius: 9px; padding: 0 14px; }
-footer { padding: 32px 6vw; color: var(--muted); }
+hr { width: 88%; border: 0; border-top: 1px solid #dce3dd; }
+footer { display: flex; align-items: center; gap: 20px; padding: 32px 6vw; color: var(--muted); }
 
 @media (max-width: 700px) {
-  .nav-links { display: none; }
-  .hero { grid-template-columns: 1fr; padding-top: 56px; }
-  .hero-image { min-height: 260px; }
+  .site-nav, .nav-content { align-items: flex-start; flex-direction: column; }
+  .hero { padding-top: 56px; }
   .card-grid { grid-template-columns: 1fr; }
 }`;
 }
