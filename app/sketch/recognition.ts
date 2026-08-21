@@ -7,6 +7,7 @@ import {
   pageBounds,
   type CanvasItem,
   type Bounds,
+  type ElementCustomizations,
   type GeneratedWebsite,
   type LayoutDirection,
   type Point,
@@ -389,6 +390,7 @@ export function inferWebsite(
     parentByPrimitiveId: {},
     orderByParentId: {},
   },
+  customizations: ElementCustomizations = {},
 ): GeneratedWebsite {
   const sorted = [...primitives].sort((first, second) =>
     first.bounds.y === second.bounds.y
@@ -537,6 +539,14 @@ export function inferWebsite(
     current.type = looksLikeButton ? 'button' : 'input';
     current.content = looksLikeButton ? 'Submit' : 'Your details';
     current.confidence = Math.max(current.confidence, 0.9);
+  });
+
+  nodes.forEach((current) => {
+    const customization = customizations[current.sourcePrimitiveIds[0]];
+    if (!customization) return;
+    if (customization.content !== undefined) current.content = customization.content;
+    if (customization.fontSize !== undefined) current.fontSize = customization.fontSize;
+    if (customization.linkPageId !== undefined) current.linkPageId = customization.linkPageId;
   });
 
   const childrenByParent = new Map<string, WebsiteNode[]>();

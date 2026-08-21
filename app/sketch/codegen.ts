@@ -1,4 +1,4 @@
-import { CANVAS_PAGE_RATIO, type GeneratedWebsite, type WebsiteNode } from './model';
+import { CANVAS_PAGE_RATIO, type GeneratedProjectPage, type WebsiteNode } from './model';
 
 function jsxText(value: string) {
   return value
@@ -20,7 +20,12 @@ function nestedText(node: WebsiteNode) {
     .join(' ');
 }
 
-function renderRows(node: WebsiteNode, depth: number, insideForm: boolean): string[] {
+function renderRows(
+  node: WebsiteNode,
+  depth: number,
+  insideForm: boolean,
+  pageById: Map<string, GeneratedProjectPage>,
+): string[] {
   const rows = node.childRows ?? node.children.map((child) => [child.id]);
   if (rows.length === 0) return [];
   const childById = new Map(node.children.map((child) => [child.id, child]));
@@ -31,7 +36,7 @@ function renderRows(node: WebsiteNode, depth: number, insideForm: boolean): stri
     lines.push(`${pad}  <div className="spatial-row${row.length === 1 ? ' single' : ''}">`);
     row.forEach((childId) => {
       const child = childById.get(childId);
-      if (child) lines.push(...renderNode(child, depth + 2, insideForm));
+      if (child) lines.push(...renderNode(child, depth + 2, insideForm, pageById));
     });
     lines.push(`${pad}  </div>`);
   });
@@ -39,18 +44,24 @@ function renderRows(node: WebsiteNode, depth: number, insideForm: boolean): stri
   return lines;
 }
 
-function renderNode(node: WebsiteNode, depth: number, insideForm = false): string[] {
+function renderNode(
+  node: WebsiteNode,
+  depth: number,
+  insideForm: boolean,
+  pageById: Map<string, GeneratedProjectPage>,
+): string[] {
   const pad = '  '.repeat(depth);
   const content = jsxText(node.content ?? '');
   const childIsInsideForm = insideForm || node.type === 'form';
-  const children = renderRows(node, depth + 1, childIsInsideForm);
+  const children = renderRows(node, depth + 1, childIsInsideForm, pageById);
+  const textStyle = node.fontSize ? ` style={{ fontSize: ${node.fontSize} }}` : '';
 
   if (node.type === 'navbar') {
     return [
       `${pad}<nav className="site-nav">`,
       `${pad}  <a className="brand" href="#">${content || 'Studio'}</a>`,
       `${pad}  <div className="nav-content">`,
-      ...renderRows(node, depth + 2, childIsInsideForm),
+      ...renderRows(node, depth + 2, childIsInsideForm, pageById),
       `${pad}  </div>`,
       `${pad}</nav>`,
     ];
@@ -65,7 +76,7 @@ function renderNode(node: WebsiteNode, depth: number, insideForm = false): strin
     return [
       `${pad}<section className="features">`,
       `${pad}  <div className="card-grid">`,
-      ...node.children.flatMap((child) => renderNode(child, depth + 2, childIsInsideForm)),
+      ...node.children.flatMap((child) => renderNode(child, depth + 2, childIsInsideForm, pageById)),
       `${pad}  </div>`,
       `${pad}</section>`,
     ];
@@ -82,14 +93,18 @@ function renderNode(node: WebsiteNode, depth: number, insideForm = false): strin
       `${pad}</article>`,
     ];
   }
-  if (node.type === 'heading') return [`${pad}<h1>${content || 'Your headline'}</h1>`];
-  if (node.type === 'paragraph') return [`${pad}<p>${content || 'Your supporting copy.'}</p>`];
+  if (node.type === 'heading') return [`${pad}<h1${textStyle}>${content || 'Your headline'}</h1>`];
+  if (node.type === 'paragraph') return [`${pad}<p${textStyle}>${content || 'Your supporting copy.'}</p>`];
   if (node.type === 'image') {
     return [`${pad}<div className="site-image" role="img" aria-label="Website visual" />`];
   }
   if (node.type === 'button') {
-    const label = jsxText(nestedText(node)) || content || 'Get started';
-    return [`${pad}<button className="primary-button" type="${insideForm ? 'submit' : 'button'}">${label}</button>`];
+    const label = content || jsxText(nestedText(node)) || 'Get started';
+    const linkedPage = node.linkPageId ? pageById.get(node.linkPageId) : undefined;
+    if (linkedPage) {
+      return [`${pad}<a className="primary-button" href="/${jsxAttribute(linkedPage.slug)}"${textStyle}>${label}</a>`];
+    }
+    return [`${pad}<button className="primary-button" type="${insideForm ? 'submit' : 'button'}"${textStyle}>${label}</button>`];
   }
   if (node.type === 'input') {
     const inputId = node.id.replace(/[^a-zA-Z0-9-]/g, '');
@@ -123,16 +138,39 @@ function renderNode(node: WebsiteNode, depth: number, insideForm = false): strin
   return children;
 }
 
-export function generateReact(site: GeneratedWebsite) {
+function componentName(page: GeneratedProjectPage, index: number) {
+  const cleaned = page.name.replace(/[^a-zA-Z0-9]+/g, ' ').trim();
+  const name = cleaned.split(/\s+/).filter(Boolean).map((word) => `${word[0]?.toUpperCase() ?? ''}${word.slice(1)}`).join('');
+  return `${name || `Page${index + 1}`}Page`;
+}
+
+export function generateReact(pages: GeneratedProjectPage[]) {
+  const pageById = new Map(pages.map((page) => [page.id, page]));
+  const components = pages.flatMap((page, index) => [
+    `export function ${componentName(page, index)}() {`,
+    '  return (',
+    '    <main className="site">',
+    ...renderRows(page.site.tree, 3, false, pageById),
+    '    </main>',
+    '  );',
+    '}',
+    '',
+  ]);
+  const routeEntries = pages.map((page, index) => (
+    `  '/${jsxAttribute(page.slug)}': <${componentName(page, index)} />`
+  ));
+  const homeName = pages[0] ? componentName(pages[0], 0) : 'GeneratedHomePage';
+
   return [
     "import './generated-site.css';",
     '',
-    'export default function GeneratedSite() {',
-    '  return (',
-    '    <main className="site">',
-    ...renderRows(site.tree, 3, false),
-    '    </main>',
-    '  );',
+    ...components,
+    'const generatedRoutes = {',
+    ...routeEntries.map((entry, index) => `${entry}${index < routeEntries.length - 1 ? ',' : ''}`),
+    '};',
+    '',
+    'export default function GeneratedSite({ pathname = \'/\' }) {',
+    `  return generatedRoutes[pathname] ?? <${homeName} />;`,
     '}',
     '',
   ].join('\n');
@@ -160,7 +198,7 @@ body { margin: 0; color: var(--ink); font-family: Inter, sans-serif; }
 .card-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; }
 .card { border-radius: 18px; background: white; padding: 28px; }
 .card p { color: var(--muted); line-height: 1.6; }
-.primary-button { display: inline-flex; border: 0; border-radius: 10px; background: var(--accent); color: white; padding: 14px 20px; text-decoration: none; }
+.primary-button { display: inline-flex; min-width: 0; align-items: center; justify-content: center; border: 0; border-radius: 10px; background: var(--accent); color: white; padding: 14px 20px; overflow-wrap: anywhere; text-align: center; text-decoration: none; white-space: normal; }
 .site-image { flex: 1 1 320px; min-height: 300px; border-radius: 24px; background: linear-gradient(145deg, #dcecdf, #9fc4ad); }
 .contact-form { display: grid; width: min(560px, 100%); gap: 10px; padding: 48px 6vw; }
 .field { display: grid; gap: 6px; }
@@ -172,7 +210,8 @@ footer { display: flex; align-items: center; gap: 20px; padding: 32px 6vw; color
 .mixed-layout { display: flex; width: 100%; flex-direction: column; gap: 18px; }
 .spatial-row { display: flex; width: 100%; flex-flow: row nowrap; align-items: center; gap: 24px; }
 .spatial-row.single { display: block; }
-.spatial-row > label, .spatial-row > .card, .spatial-row > .site-image { min-width: 0; flex: 1 1 0; }
+.spatial-row:not(.single) > * { min-width: 0; max-width: 100%; flex: 1 1 0; }
+.spatial-row:not(.single) > .primary-button { width: 100%; }
 
 @media (max-width: 700px) {
   .site-nav, .nav-content { align-items: flex-start; flex-direction: column; }

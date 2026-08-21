@@ -90,6 +90,14 @@ export type StructureLayout = {
   orderByParentId: Record<string, string[]>;
 };
 
+export type ElementCustomization = {
+  content?: string;
+  fontSize?: number;
+  linkPageId?: string;
+};
+
+export type ElementCustomizations = Record<string, ElementCustomization>;
+
 export type WebsiteNode = {
   id: string;
   type: WebsiteNodeType;
@@ -98,6 +106,8 @@ export type WebsiteNode = {
   children: WebsiteNode[];
   childRows?: string[][];
   content?: string;
+  fontSize?: number;
+  linkPageId?: string;
   layout?: LayoutDirection;
   orientation?: DividerOrientation;
   sourcePrimitiveIds: string[];
@@ -105,6 +115,13 @@ export type WebsiteNode = {
 
 export type GeneratedWebsite = {
   tree: WebsiteNode;
+};
+
+export type GeneratedProjectPage = {
+  id: string;
+  name: string;
+  slug: string;
+  site: GeneratedWebsite;
 };
 
 export function clamp(value: number, minimum = 0, maximum = 1) {

@@ -5,6 +5,9 @@ import DrawingWorkspace from './DrawingWorkspace';
 import { generateCss, generateReact } from './sketch/codegen';
 import type {
   CanvasItem,
+  ElementCustomization,
+  ElementCustomizations,
+  GeneratedProjectPage,
   GeneratedWebsite,
   RecognizedPrimitive,
   StructureLayout,
@@ -19,6 +22,35 @@ type PreviewSize = 'desktop' | 'tablet' | 'mobile';
 type OutputView = 'preview' | 'structure' | 'code';
 type CodeView = 'react' | 'css';
 type RecognitionStatus = 'idle' | 'analyzing' | 'ready';
+
+type ProjectPage = {
+  id: string;
+  name: string;
+  slug: string;
+  canvasItems: CanvasItem[];
+  primitives: RecognizedPrimitive[];
+  overrides: StructureOverrides;
+  layout: StructureLayout;
+  customizations: ElementCustomizations;
+};
+
+const emptyLayout = (): StructureLayout => ({
+  parentByPrimitiveId: {},
+  orderByParentId: {},
+});
+
+const createProjectPage = (index: number): ProjectPage => ({
+  id: index === 1 ? 'page-home' : `page-${Date.now()}-${index}`,
+  name: index === 1 ? 'Home' : `Page ${index}`,
+  slug: index === 1 ? '' : `page-${index}`,
+  canvasItems: [],
+  primitives: [],
+  overrides: {},
+  layout: emptyLayout(),
+  customizations: {},
+});
+
+const initialPage = createProjectPage(1);
 
 const previewSizes: Array<{ id: PreviewSize; label: string }> = [
   { id: 'desktop', label: 'Desktop' },
@@ -61,7 +93,17 @@ const containerTypes = new Set<WebsiteNode['type']>([
   'footer',
 ]);
 
-function GeneratedRows({ node, insideForm }: { node: WebsiteNode; insideForm: boolean }) {
+function GeneratedRows({
+  node,
+  insideForm,
+  onSelect,
+  selectedId,
+}: {
+  node: WebsiteNode;
+  insideForm: boolean;
+  onSelect: (node: WebsiteNode) => void;
+  selectedId: string | null;
+}) {
   const childById = new Map(node.children.map((child) => [child.id, child]));
   const rows = node.childRows ?? node.children.map((child) => [child.id]);
   if (rows.length === 0) return null;
@@ -75,7 +117,15 @@ function GeneratedRows({ node, insideForm }: { node: WebsiteNode; insideForm: bo
         >
           {row.map((childId) => {
             const child = childById.get(childId);
-            return child ? <GeneratedNode insideForm={insideForm} key={child.id} node={child} /> : null;
+            return child ? (
+              <GeneratedNode
+                insideForm={insideForm}
+                key={child.id}
+                node={child}
+                onSelect={onSelect}
+                selectedId={selectedId}
+              />
+            ) : null;
           })}
         </div>
       ))}
@@ -83,12 +133,41 @@ function GeneratedRows({ node, insideForm }: { node: WebsiteNode; insideForm: bo
   );
 }
 
-function GeneratedNode({ node, insideForm = false }: { node: WebsiteNode; insideForm?: boolean }) {
+function GeneratedNode({
+  node,
+  insideForm = false,
+  onSelect,
+  selectedId,
+}: {
+  node: WebsiteNode;
+  insideForm?: boolean;
+  onSelect: (node: WebsiteNode) => void;
+  selectedId: string | null;
+}) {
   const childIsInsideForm = insideForm || node.type === 'form';
   const directChildren = node.children.map((child) => (
-    <GeneratedNode insideForm={childIsInsideForm} key={child.id} node={child} />
+    <GeneratedNode
+      insideForm={childIsInsideForm}
+      key={child.id}
+      node={child}
+      onSelect={onSelect}
+      selectedId={selectedId}
+    />
   ));
-  const groupedChildren = <GeneratedRows insideForm={childIsInsideForm} node={node} />;
+  const groupedChildren = (
+    <GeneratedRows
+      insideForm={childIsInsideForm}
+      node={node}
+      onSelect={onSelect}
+      selectedId={selectedId}
+    />
+  );
+  const editableClass = selectedId === node.id ? 'generated-editable selected' : 'generated-editable';
+  const editableProps = {
+    className: editableClass,
+    onClick: () => onSelect(node),
+    style: node.fontSize ? { fontSize: `${node.fontSize}px` } : undefined,
+  };
 
   if (node.type === 'navbar') {
     return (
@@ -110,8 +189,8 @@ function GeneratedNode({ node, insideForm = false }: { node: WebsiteNode; inside
       </article>
     );
   }
-  if (node.type === 'heading') return <h1>{node.content ?? 'Your headline'}</h1>;
-  if (node.type === 'paragraph') return <p>{node.content ?? 'Your supporting copy.'}</p>;
+  if (node.type === 'heading') return <h1 {...editableProps}>{node.content ?? 'Your headline'}</h1>;
+  if (node.type === 'paragraph') return <p {...editableProps}>{node.content ?? 'Your supporting copy.'}</p>;
   const nestedLabel = node.children
     .map((child) => child.content)
     .filter(Boolean)
@@ -119,7 +198,18 @@ function GeneratedNode({ node, insideForm = false }: { node: WebsiteNode; inside
   if (node.type === 'image') {
     return <div aria-label="Generated visual placeholder" className="generated-image" role="img"><span>Image</span></div>;
   }
-  if (node.type === 'button') return <button className="generated-button" type={insideForm ? 'submit' : 'button'}>{nestedLabel || node.content || 'Get started'}</button>;
+  if (node.type === 'button') {
+    return (
+      <button
+        className={`generated-button ${editableClass}`}
+        onClick={() => onSelect(node)}
+        style={node.fontSize ? { fontSize: `${node.fontSize}px` } : undefined}
+        type="button"
+      >
+        {node.content || nestedLabel || 'Get started'}
+      </button>
+    );
+  }
   if (node.type === 'input') {
     return <label className="generated-field">{nestedLabel || node.content || 'Your details'}<input placeholder={nestedLabel || node.content} /></label>;
   }
@@ -136,7 +226,15 @@ function GeneratedNode({ node, insideForm = false }: { node: WebsiteNode; inside
   return null;
 }
 
-function GeneratedPreview({ site }: { site: GeneratedWebsite }) {
+function GeneratedPreview({
+  onSelect,
+  selectedId,
+  site,
+}: {
+  onSelect: (node: WebsiteNode) => void;
+  selectedId: string | null;
+  site: GeneratedWebsite;
+}) {
   const hasContent = site.tree.children.length > 0;
 
   if (!hasContent) {
@@ -154,7 +252,14 @@ function GeneratedPreview({ site }: { site: GeneratedWebsite }) {
 
   return (
     <div className="generated-site-preview">
-      <div className="generated-page-layout"><GeneratedRows insideForm={false} node={site.tree} /></div>
+      <div className="generated-page-layout">
+        <GeneratedRows
+          insideForm={false}
+          node={site.tree}
+          onSelect={onSelect}
+          selectedId={selectedId}
+        />
+      </div>
     </div>
   );
 }
@@ -219,6 +324,15 @@ function findStructureNode(node: WebsiteNode, sourceIds: string[]): WebsiteNode 
   return sameSources ? node : null;
 }
 
+function findNodeBySourceId(node: WebsiteNode, sourceId: string): WebsiteNode | null {
+  if (node.sourcePrimitiveIds.includes(sourceId) && node.type !== 'page') return node;
+  for (const child of node.children) {
+    const match = findNodeBySourceId(child, sourceId);
+    if (match) return match;
+  }
+  return null;
+}
+
 function findParentNode(node: WebsiteNode, childId: string): WebsiteNode | null {
   if (node.children.some((child) => child.id === childId)) return node;
   for (const child of node.children) {
@@ -237,6 +351,7 @@ function descendantIds(node: WebsiteNode) {
 }
 
 type OutputPanelProps = {
+  activePageId: string;
   codeView: CodeView;
   copiedLabel: string;
   cssCode: string;
@@ -247,7 +362,11 @@ type OutputPanelProps = {
   setCodeView: (view: CodeView) => void;
   setOutputView: (view: OutputView) => void;
   site: GeneratedWebsite;
+  pages: Array<{ id: string; name: string; slug: string }>;
   onCopy: () => void;
+  onCreateLinkedPage: (sourceId: string) => void;
+  onElementEdit: (sourceId: string, patch: ElementCustomization) => void;
+  onPageChange: (pageId: string) => void;
   onStructureOverride: (sourceIds: string[], type: StructureOverrideType | 'automatic') => void;
   onStructureParent: (primitiveId: string, parentId: string) => void;
   onStructureMove: (primitiveId: string, direction: -1 | 1) => void;
@@ -256,14 +375,19 @@ type OutputPanelProps = {
 };
 
 function OutputPanel({
+  activePageId,
   codeView,
   copiedLabel,
   cssCode,
   onCopy,
+  onCreateLinkedPage,
+  onElementEdit,
+  onPageChange,
   onStructureOverride,
   onStructureParent,
   onStructureMove,
   outputView,
+  pages,
   previewSize,
   primitives,
   layout,
@@ -274,7 +398,15 @@ function OutputPanel({
   site,
 }: OutputPanelProps) {
   const [selectedSourceIds, setSelectedSourceIds] = useState<string[]>([]);
+  const [selectedPreviewSourceId, setSelectedPreviewSourceId] = useState<string | null>(null);
   const selectedStructureNode = findStructureNode(site.tree, selectedSourceIds);
+  const selectedPreviewNode = selectedPreviewSourceId
+    ? findNodeBySourceId(site.tree, selectedPreviewSourceId)
+    : null;
+  const editablePreviewNode = selectedPreviewNode && ['heading', 'paragraph', 'button'].includes(selectedPreviewNode.type)
+    ? selectedPreviewNode
+    : null;
+  const activePage = pages.find((page) => page.id === activePageId);
   const selectedOverride = selectedStructureNode?.sourcePrimitiveIds
     .map((id) => overrides[id])
     .find(Boolean);
@@ -324,15 +456,69 @@ function OutputPanel({
 
       {outputView === 'preview' && (
         <div className="preview-stage">
+          <div className="live-content-editor">
+            {editablePreviewNode && selectedPreviewSourceId ? (
+              <>
+                <label>
+                  Text
+                  <input
+                    onChange={(event) => onElementEdit(selectedPreviewSourceId, { content: event.target.value })}
+                    type="text"
+                    value={editablePreviewNode.content ?? ''}
+                  />
+                </label>
+                <label className="font-size-control">
+                  Font size
+                  <input
+                    max="96"
+                    min="8"
+                    onChange={(event) => onElementEdit(selectedPreviewSourceId, { fontSize: Number(event.target.value) })}
+                    type="number"
+                    value={editablePreviewNode.fontSize ?? (editablePreviewNode.type === 'heading' ? 32 : 10)}
+                  />
+                </label>
+                {editablePreviewNode.type === 'button' && (
+                  <>
+                    <label>
+                      Link to page
+                      <select
+                        onChange={(event) => onElementEdit(selectedPreviewSourceId, { linkPageId: event.target.value })}
+                        value={editablePreviewNode.linkPageId ?? ''}
+                      >
+                        <option value="">No page link</option>
+                        {pages.map((page) => (
+                          <option key={page.id} value={page.id}>{page.name}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <button onClick={() => onCreateLinkedPage(selectedPreviewSourceId)} type="button">
+                      New linked page
+                    </button>
+                    {editablePreviewNode.linkPageId && (
+                      <button onClick={() => onPageChange(editablePreviewNode.linkPageId!)} type="button">
+                        Open linked page
+                      </button>
+                    )}
+                  </>
+                )}
+              </>
+            ) : (
+              <p>Click a heading, paragraph, or button in the website to edit it.</p>
+            )}
+          </div>
           <div className={`preview-viewport ${previewSize}`}>
             <div className="browser-frame">
               <div className="browser-bar" aria-hidden="true">
                 <span />
                 <span />
                 <span />
-                <div>your-site.local</div>
+                <div>your-site.local/{activePage?.slug ?? ''}</div>
               </div>
-              <GeneratedPreview site={site} />
+              <GeneratedPreview
+                onSelect={(node) => setSelectedPreviewSourceId(node.sourcePrimitiveIds[0] ?? null)}
+                selectedId={selectedPreviewNode?.id ?? null}
+                site={site}
+              />
             </div>
           </div>
         </div>
@@ -463,13 +649,8 @@ function OutputPanel({
 }
 
 export default function SketchSiteApp() {
-  const [canvasItems, setCanvasItems] = useState<CanvasItem[]>([]);
-  const [primitives, setPrimitives] = useState<RecognizedPrimitive[]>([]);
-  const [structureOverrides, setStructureOverrides] = useState<StructureOverrides>({});
-  const [structureLayout, setStructureLayout] = useState<StructureLayout>({
-    parentByPrimitiveId: {},
-    orderByParentId: {},
-  });
+  const [pages, setPages] = useState<ProjectPage[]>([initialPage]);
+  const [activePageId, setActivePageId] = useState(initialPage.id);
   const [recognitionStatus, setRecognitionStatus] =
     useState<RecognitionStatus>('idle');
   const [previewSize, setPreviewSize] = useState<PreviewSize>('desktop');
@@ -477,53 +658,108 @@ export default function SketchSiteApp() {
   const [codeView, setCodeView] = useState<CodeView>('react');
   const [copiedLabel, setCopiedLabel] = useState('Copy code');
   const recognitionRevision = useRef(0);
+  const activePage = pages.find((page) => page.id === activePageId) ?? pages[0];
+
+  function updateActivePage(updater: (page: ProjectPage) => ProjectPage) {
+    setPages((current) => current.map((page) => (
+      page.id === activePageId ? updater(page) : page
+    )));
+  }
 
   useEffect(() => {
     const revision = recognitionRevision.current + 1;
     recognitionRevision.current = revision;
 
-    if (canvasItems.length === 0) {
+    if (activePage.canvasItems.length === 0) {
       return;
     }
 
     const timer = window.setTimeout(() => {
-      const result = recognizeCanvas(canvasItems);
+      const result = recognizeCanvas(activePage.canvasItems);
       if (recognitionRevision.current === revision) {
-        setPrimitives(result);
+        setPages((current) => current.map((page) => (
+          page.id === activePageId ? { ...page, primitives: result } : page
+        )));
         setRecognitionStatus('ready');
       }
     }, 500);
 
     return () => window.clearTimeout(timer);
-  }, [canvasItems]);
+  }, [activePage.canvasItems, activePageId]);
 
-  const site = useMemo(
-    () => inferWebsite(primitives, structureOverrides, structureLayout),
-    [primitives, structureOverrides, structureLayout],
+  const generatedPages = useMemo<GeneratedProjectPage[]>(
+    () => pages.map((page) => ({
+      id: page.id,
+      name: page.name,
+      slug: page.slug,
+      site: inferWebsite(page.primitives, page.overrides, page.layout, page.customizations),
+    })),
+    [pages],
   );
-  const reactCode = useMemo(() => generateReact(site), [site]);
+  const site = generatedPages.find((page) => page.id === activePageId)?.site ?? generatedPages[0].site;
+  const reactCode = useMemo(() => generateReact(generatedPages), [generatedPages]);
   const cssCode = useMemo(() => generateCss(), []);
 
   function handleCanvasItemsChange(nextItems: CanvasItem[]) {
-    setCanvasItems(nextItems);
+    updateActivePage((page) => ({
+      ...page,
+      canvasItems: nextItems,
+      ...(nextItems.length === 0
+        ? { primitives: [], overrides: {}, layout: emptyLayout(), customizations: {} }
+        : {}),
+    }));
     setRecognitionStatus(nextItems.length > 0 ? 'analyzing' : 'idle');
     if (nextItems.length === 0) {
       recognitionRevision.current += 1;
-      setPrimitives([]);
-      setStructureOverrides({});
-      setStructureLayout({ parentByPrimitiveId: {}, orderByParentId: {} });
     }
   }
 
+  function handlePageChange(pageId: string) {
+    const page = pages.find((candidate) => candidate.id === pageId);
+    if (!page) return;
+    recognitionRevision.current += 1;
+    setActivePageId(pageId);
+    setRecognitionStatus(page.canvasItems.length === 0 ? 'idle' : page.primitives.length > 0 ? 'ready' : 'analyzing');
+  }
+
+  function handleElementEdit(sourceId: string, patch: ElementCustomization) {
+    updateActivePage((page) => ({
+      ...page,
+      customizations: {
+        ...page.customizations,
+        [sourceId]: { ...page.customizations[sourceId], ...patch },
+      },
+    }));
+  }
+
+  function handleCreateLinkedPage(sourceId: string) {
+    const nextPage = createProjectPage(pages.length + 1);
+    setPages((current) => [
+      ...current.map((page) => page.id === activePageId
+        ? {
+            ...page,
+            customizations: {
+              ...page.customizations,
+              [sourceId]: { ...page.customizations[sourceId], linkPageId: nextPage.id },
+            },
+          }
+        : page),
+      nextPage,
+    ]);
+    recognitionRevision.current += 1;
+    setActivePageId(nextPage.id);
+    setRecognitionStatus('idle');
+  }
+
   function handleStructureParent(primitiveId: string, parentId: string) {
-    setStructureLayout((current) => {
-      const parentByPrimitiveId = { ...current.parentByPrimitiveId };
+    updateActivePage((page) => {
+      const parentByPrimitiveId = { ...page.layout.parentByPrimitiveId };
       if (parentId === 'automatic') {
         delete parentByPrimitiveId[primitiveId];
       } else {
         parentByPrimitiveId[primitiveId] = parentId;
       }
-      return { ...current, parentByPrimitiveId };
+      return { ...page, layout: { ...page.layout, parentByPrimitiveId } };
     });
   }
 
@@ -537,9 +773,12 @@ export default function SketchSiteApp() {
     const targetIndex = index + direction;
     if (index < 0 || targetIndex < 0 || targetIndex >= siblingIds.length) return;
     [siblingIds[index], siblingIds[targetIndex]] = [siblingIds[targetIndex], siblingIds[index]];
-    setStructureLayout((current) => ({
-      ...current,
-      orderByParentId: { ...current.orderByParentId, [parent.id]: siblingIds },
+    updateActivePage((page) => ({
+      ...page,
+      layout: {
+        ...page.layout,
+        orderByParentId: { ...page.layout.orderByParentId, [parent.id]: siblingIds },
+      },
     }));
   }
 
@@ -547,8 +786,8 @@ export default function SketchSiteApp() {
     sourceIds: string[],
     type: StructureOverrideType | 'automatic',
   ) {
-    setStructureOverrides((current) => {
-      const next = { ...current };
+    updateActivePage((page) => {
+      const next = { ...page.overrides };
       sourceIds.forEach((sourceId) => {
         if (type === 'automatic') {
           delete next[sourceId];
@@ -556,14 +795,14 @@ export default function SketchSiteApp() {
           next[sourceId] = type;
         }
       });
-      return next;
+      return { ...page, overrides: next };
     });
   }
 
   function recognizeNow() {
     recognitionRevision.current += 1;
-    setPrimitives(recognizeCanvas(canvasItems));
-    setRecognitionStatus(canvasItems.length > 0 ? 'ready' : 'idle');
+    updateActivePage((page) => ({ ...page, primitives: recognizeCanvas(page.canvasItems) }));
+    setRecognitionStatus(activePage.canvasItems.length > 0 ? 'ready' : 'idle');
   }
 
   async function copyCode() {
@@ -576,7 +815,7 @@ export default function SketchSiteApp() {
     }
   }
 
-  const confidentCount = primitives.filter(
+  const confidentCount = activePage.primitives.filter(
     (primitive) => primitive.confidence >= 0.75,
   ).length;
 
@@ -614,22 +853,33 @@ export default function SketchSiteApp() {
 
       <section className="workspace" aria-label="SketchSite workspace">
         <DrawingWorkspace
+          initialItems={activePage.canvasItems}
+          key={activePageId}
           onItemsChange={handleCanvasItemsChange}
-          recognizedPrimitives={primitives}
+          onPageChange={handlePageChange}
+          pageId={activePageId}
+          pages={pages.map(({ id, name }) => ({ id, name }))}
+          recognizedPrimitives={activePage.primitives}
         />
         <OutputPanel
+          activePageId={activePageId}
           codeView={codeView}
           copiedLabel={copiedLabel}
           cssCode={cssCode}
+          key={activePageId}
           onCopy={copyCode}
+          onCreateLinkedPage={handleCreateLinkedPage}
+          onElementEdit={handleElementEdit}
+          onPageChange={handlePageChange}
           onStructureOverride={handleStructureOverride}
           onStructureParent={handleStructureParent}
           onStructureMove={handleStructureMove}
           outputView={outputView}
+          pages={pages.map(({ id, name, slug }) => ({ id, name, slug }))}
           previewSize={previewSize}
-          primitives={primitives}
-          layout={structureLayout}
-          overrides={structureOverrides}
+          primitives={activePage.primitives}
+          layout={activePage.layout}
+          overrides={activePage.overrides}
           reactCode={reactCode}
           setCodeView={setCodeView}
           setOutputView={setOutputView}
@@ -641,17 +891,17 @@ export default function SketchSiteApp() {
         <div>
           <p className="eyebrow">Recognition</p>
           <h2>
-            {primitives.length > 0
-              ? `${primitives.length} elements found`
+            {activePage.primitives.length > 0
+              ? `${activePage.primitives.length} elements found`
               : 'Nothing recognized yet'}
           </h2>
         </div>
         <p>
-          {primitives.length > 0
-            ? `${confidentCount} confident · ${primitives.length - confidentCount} need review`
+          {activePage.primitives.length > 0
+            ? `${confidentCount} confident · ${activePage.primitives.length - confidentCount} need review`
             : 'Draw a few website elements, then pause for automatic recognition.'}
         </p>
-        <button disabled={canvasItems.length === 0} onClick={recognizeNow} type="button">
+        <button disabled={activePage.canvasItems.length === 0} onClick={recognizeNow} type="button">
           Recognize now
         </button>
       </aside>

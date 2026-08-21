@@ -299,22 +299,30 @@ function SelectionOutline({ item }: { item: CanvasItem }) {
 }
 
 type DrawingWorkspaceProps = {
+  initialItems?: CanvasItem[];
   onItemsChange: (items: CanvasItem[]) => void;
+  onPageChange: (pageId: string) => void;
+  pageId: string;
+  pages: Array<{ id: string; name: string }>;
   recognizedPrimitives: RecognizedPrimitive[];
 };
 
 export default function DrawingWorkspace({
+  initialItems = [],
   onItemsChange,
+  onPageChange,
+  pageId,
+  pages,
   recognizedPrimitives,
 }: DrawingWorkspaceProps) {
   const [activeTool, setActiveTool] = useState<Tool>('pen');
-  const [items, setItems] = useState<CanvasItem[]>([]);
+  const [items, setItems] = useState<CanvasItem[]>(initialItems);
   const [history, setHistory] = useState<CanvasItem[][]>([]);
   const [future, setFuture] = useState<CanvasItem[][]>([]);
   const [draftItem, setDraftItem] = useState<DrawableItem | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [textValue, setTextValue] = useState('Text');
-  const itemsRef = useRef<CanvasItem[]>([]);
+  const itemsRef = useRef<CanvasItem[]>(initialItems);
   const gestureRef = useRef<Gesture | null>(null);
 
   function updateItems(nextItems: CanvasItem[]) {
@@ -589,7 +597,14 @@ export default function DrawingWorkspace({
           <p className="eyebrow">Input</p>
           <h1 id="sketch-heading">Sketch wireframe</h1>
         </div>
-        <span className="panel-meta">Untitled</span>
+        <label className="page-picker">
+          <span>Page</span>
+          <select onChange={(event) => onPageChange(event.target.value)} value={pageId}>
+            {pages.map((page) => (
+              <option key={page.id} value={page.id}>{page.name}</option>
+            ))}
+          </select>
+        </label>
       </div>
 
       <div className="drawing-toolbar" aria-label="Drawing tools">
