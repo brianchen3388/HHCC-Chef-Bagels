@@ -1,4 +1,4 @@
-import type { GeneratedWebsite, WebsiteNode } from './model';
+import { CANVAS_PAGE_RATIO, type GeneratedWebsite, type WebsiteNode } from './model';
 
 function jsxText(value: string) {
   return value
@@ -20,6 +20,10 @@ function nestedText(node: WebsiteNode) {
     .join(' ');
 }
 
+function layoutClass(node: WebsiteNode) {
+  return `layout-${node.layout ?? 'vertical'}`;
+}
+
 function renderNode(node: WebsiteNode, depth: number, insideForm = false): string[] {
   const pad = '  '.repeat(depth);
   const content = jsxText(node.content ?? '');
@@ -32,17 +36,17 @@ function renderNode(node: WebsiteNode, depth: number, insideForm = false): strin
     return [
       `${pad}<nav className="site-nav">`,
       `${pad}  <a className="brand" href="#">${content || 'Studio'}</a>`,
-      `${pad}  <div className="nav-content">`,
+      `${pad}  <div className="nav-content ${layoutClass(node)}">`,
       ...node.children.flatMap((child) => renderNode(child, depth + 2, childIsInsideForm)),
       `${pad}  </div>`,
       `${pad}</nav>`,
     ];
   }
   if (node.type === 'hero') {
-    return [`${pad}<section className="hero">`, ...children, `${pad}</section>`];
+    return [`${pad}<section className="hero ${layoutClass(node)}">`, ...children, `${pad}</section>`];
   }
   if (node.type === 'section') {
-    return [`${pad}<section className="section">`, ...children, `${pad}</section>`];
+    return [`${pad}<section className="section ${layoutClass(node)}">`, ...children, `${pad}</section>`];
   }
   if (node.type === 'cardGrid') {
     return [
@@ -55,7 +59,7 @@ function renderNode(node: WebsiteNode, depth: number, insideForm = false): strin
   }
   if (node.type === 'card') {
     return [
-      `${pad}<article className="card">`,
+      `${pad}<article className="card ${layoutClass(node)}">`,
       ...(node.children.length > 0
         ? children
         : [
@@ -84,12 +88,19 @@ function renderNode(node: WebsiteNode, depth: number, insideForm = false): strin
     ];
   }
   if (node.type === 'form') {
-    return [`${pad}<form className="contact-form">`, ...children, `${pad}</form>`];
+    return [`${pad}<form className="contact-form ${layoutClass(node)}">`, ...children, `${pad}</form>`];
   }
-  if (node.type === 'divider') return [`${pad}<hr />`];
+  if (node.type === 'divider') {
+    const orientation = node.orientation ?? (
+      node.bounds.width >= node.bounds.height * CANVAS_PAGE_RATIO ? 'horizontal' : 'vertical'
+    );
+    return [
+      `${pad}<div className="divider divider-${orientation}" role="separator" aria-orientation="${orientation}" />`,
+    ];
+  }
   if (node.type === 'footer') {
     return [
-      `${pad}<footer>`,
+      `${pad}<footer className="${layoutClass(node)}">`,
       ...(node.children.length > 0 ? children : [`${pad}  ${content || '© 2026 Your studio'}`]),
       `${pad}</footer>`,
     ];
@@ -103,7 +114,7 @@ export function generateReact(site: GeneratedWebsite) {
     '',
     'export default function GeneratedSite() {',
     '  return (',
-    '    <main className="site">',
+    `    <main className="site ${layoutClass(site.tree)}">`,
     ...site.tree.children.flatMap((child) => renderNode(child, 3)),
     '    </main>',
     '  );',
@@ -138,8 +149,12 @@ body { margin: 0; color: var(--ink); font-family: Inter, sans-serif; }
 .site-image { flex: 1 1 320px; min-height: 300px; border-radius: 24px; background: linear-gradient(145deg, #dcecdf, #9fc4ad); }
 .contact-form { display: grid; width: min(560px, 100%); gap: 10px; padding: 48px 6vw; }
 input { min-height: 48px; margin-bottom: 12px; border: 1px solid #cdd7cf; border-radius: 9px; padding: 0 14px; }
-hr { width: 88%; border: 0; border-top: 1px solid #dce3dd; }
+.divider { flex: 0 0 auto; background: #dce3dd; }
+.divider-horizontal { width: 88%; height: 1px; }
+.divider-vertical { width: 1px; min-height: 96px; align-self: stretch; }
 footer { display: flex; align-items: center; gap: 20px; padding: 32px 6vw; color: var(--muted); }
+.layout-horizontal { display: flex; flex-flow: row wrap; align-items: center; gap: 24px; }
+.layout-vertical { display: flex; flex-direction: column; align-items: stretch; gap: 18px; }
 
 @media (max-width: 700px) {
   .site-nav, .nav-content { align-items: flex-start; flex-direction: column; }

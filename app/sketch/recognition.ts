@@ -8,6 +8,7 @@ import {
   type CanvasItem,
   type Bounds,
   type GeneratedWebsite,
+  type LayoutDirection,
   type Point,
   type RecognizedPrimitive,
   type StructureLayout,
@@ -32,6 +33,89 @@ function pathLength(points: Point[]) {
     (total, point, index) => total + distance(points[index], point),
     0,
   );
+}
+
+type StrokeItem = Extract<CanvasItem, { kind: 'pen' | 'line' }>;
+
+function strokePoints(stroke: StrokeItem) {
+  return stroke.kind === 'pen' ? stroke.points : [stroke.start, stroke.end];
+}
+
+function pointToSegmentDistance(point: Point, start: Point, end: Point) {
+  const pointX = point.x;
+  const pointY = point.y * CANVAS_PAGE_RATIO;
+  const startX = start.x;
+  const startY = start.y * CANVAS_PAGE_RATIO;
+  const endX = end.x;
+  const endY = end.y * CANVAS_PAGE_RATIO;
+  const lengthSquared = (endX - startX) ** 2 + (endY - startY) ** 2;
+  if (lengthSquared === 0) return Math.hypot(pointX - startX, pointY - startY);
+  const projection = clamp(
+    ((pointX - startX) * (endX - startX) +
+      (pointY - startY) * (endY - startY)) /
+      lengthSquared,
+  );
+  return Math.hypot(
+    pointX - (startX + projection * (endX - startX)),
+    pointY - (startY + projection * (endY - startY)),
+  );
+}
+
+function segmentsCross(firstStart: Point, firstEnd: Point, secondStart: Point, secondEnd: Point) {
+  const cross = (a: Point, b: Point, c: Point) =>
+    (b.x - a.x) * ((c.y - a.y) * CANVAS_PAGE_RATIO) -
+    ((b.y - a.y) * CANVAS_PAGE_RATIO) * (c.x - a.x);
+  const firstSide = cross(firstStart, firstEnd, secondStart);
+  const secondSide = cross(firstStart, firstEnd, secondEnd);
+  const thirdSide = cross(secondStart, secondEnd, firstStart);
+  const fourthSide = cross(secondStart, secondEnd, firstEnd);
+  const boxesOverlap =
+    Math.max(Math.min(firstStart.x, firstEnd.x), Math.min(secondStart.x, secondEnd.x)) <=
+      Math.min(Math.max(firstStart.x, firstEnd.x), Math.max(secondStart.x, secondEnd.x)) + 0.002 &&
+    Math.max(Math.min(firstStart.y, firstEnd.y), Math.min(secondStart.y, secondEnd.y)) <=
+      Math.min(Math.max(firstStart.y, firstEnd.y), Math.max(secondStart.y, secondEnd.y)) + 0.002;
+  return boxesOverlap && firstSide * secondSide <= 0 && thirdSide * fourthSide <= 0;
+}
+
+function strokesIntersect(first: StrokeItem, second: StrokeItem) {
+  const firstPoints = strokePoints(first);
+  const secondPoints = strokePoints(second);
+  const firstSegments = firstPoints.length > 1
+    ? firstPoints.slice(1).map((end, index) => [firstPoints[index], end] as const)
+    : [[firstPoints[0], firstPoints[0]] as const];
+  const secondSegments = secondPoints.length > 1
+    ? secondPoints.slice(1).map((end, index) => [secondPoints[index], end] as const)
+    : [[secondPoints[0], secondPoints[0]] as const];
+
+  return firstSegments.some(([firstStart, firstEnd]) =>
+    secondSegments.some(([secondStart, secondEnd]) =>
+      segmentsCross(firstStart, firstEnd, secondStart, secondEnd) ||
+      pointToSegmentDistance(firstStart, secondStart, secondEnd) < 0.012 ||
+      pointToSegmentDistance(firstEnd, secondStart, secondEnd) < 0.012 ||
+      pointToSegmentDistance(secondStart, firstStart, firstEnd) < 0.012 ||
+      pointToSegmentDistance(secondEnd, firstStart, firstEnd) < 0.012,
+    ),
+  );
+}
+
+function groupRapidIntersectingStrokes(items: CanvasItem[]) {
+  const strokes = items
+    .filter((item): item is StrokeItem => item.kind === 'pen' || item.kind === 'line')
+    .sort((first, second) => strokePoints(first)[0].timestamp - strokePoints(second)[0].timestamp);
+  const groups: StrokeItem[][] = [];
+
+  strokes.forEach((stroke) => {
+    const current = groups.at(-1);
+    const previous = current?.at(-1);
+    const previousEnd = previous ? strokePoints(previous).at(-1)?.timestamp ?? 0 : 0;
+    const currentStart = strokePoints(stroke)[0].timestamp;
+    const rapid = Boolean(previous && currentStart - previousEnd >= 0 && currentStart - previousEnd <= 700);
+    const intersects = Boolean(current?.some((candidate) => strokesIntersect(candidate, stroke)));
+    if (current && rapid && intersects) current.push(stroke);
+    else groups.push([stroke]);
+  });
+
+  return groups;
 }
 
 function getRectangularity(item: Extract<CanvasItem, { kind: 'pen' }>) {
@@ -223,7 +307,7 @@ export function recognizeCanvas(items: CanvasItem[]) {
     });
 
   items.forEach((item) => {
-    if (item.kind === 'frame') {
+    if (item.kind === 'frame' || item.kind === 'pen' || item.kind === 'line') {
       return;
     }
 
@@ -240,23 +324,38 @@ export function recognizeCanvas(items: CanvasItem[]) {
       return;
     }
 
-    if (item.kind === 'line') {
-      const bounds = getCanvasItemBounds(item);
-      const horizontal = bounds.width > 0.045 && visualHeight(bounds.height) < 0.025;
+  });
+
+  groupRapidIntersectingStrokes(items).forEach((group) => {
+    if (group.length === 1 && group[0].kind === 'line') {
+      const bounds = getCanvasItemBounds(group[0]);
+      const orientation = bounds.width >= visualHeight(bounds.height)
+        ? 'horizontal'
+        : 'vertical';
       primitives.push({
-        id: `primitive-${item.id}`,
-        sourceItemIds: [item.id],
-        type: horizontal ? 'text' : 'divider',
-        bounds: horizontal
-          ? { ...bounds, height: Math.max(bounds.height, 0.012) }
-          : bounds,
-        confidence: horizontal ? 0.88 : 0.7,
+        id: `primitive-${group[0].id}`,
+        sourceItemIds: [group[0].id],
+        type: 'divider',
+        bounds,
+        confidence: 0.96,
         manuallyCorrected: false,
+        orientation,
       });
       return;
     }
 
-    primitives.push(recognizePen(item));
+    const merged: Extract<CanvasItem, { kind: 'pen' }> = {
+      id: group[0].id,
+      kind: 'pen',
+      points: group.flatMap(strokePoints),
+    };
+    const primitive = recognizePen(merged);
+    primitives.push({
+      ...primitive,
+      id: `primitive-${group[0].id}`,
+      sourceItemIds: group.map((item) => item.id),
+      confidence: group.length > 1 ? Math.max(0.82, primitive.confidence) : primitive.confidence,
+    });
   });
 
   return primitives.sort((first, second) =>
@@ -356,6 +455,7 @@ export function inferWebsite(
       confidence: overrides[primitive.id] ? 1 : primitive.confidence,
       children: [],
       content: defaultContent(type, primitive),
+      orientation: primitive.orientation,
       sourcePrimitiveIds: [primitive.id],
     });
     primitiveByNodeId.set(`node-${primitive.id}`, primitive);
@@ -426,8 +526,21 @@ export function inferWebsite(
     childrenByParent.set(parentId, siblings);
   });
 
+  const inferDirection = (children: WebsiteNode[]): LayoutDirection => {
+    if (children.length < 2) return 'vertical';
+    const centers = children.map((child) => boundsCenter(child.bounds));
+    const horizontalSpread = Math.max(...centers.map((center) => center.x)) -
+      Math.min(...centers.map((center) => center.x));
+    const verticalSpread = (
+      Math.max(...centers.map((center) => center.y)) -
+      Math.min(...centers.map((center) => center.y))
+    ) * CANVAS_PAGE_RATIO;
+    return horizontalSpread > verticalSpread * 1.15 ? 'horizontal' : 'vertical';
+  };
+
   const sortChildren = (parentId: string, children: WebsiteNode[]) => {
     const manualOrder = layout.orderByParentId[parentId] ?? [];
+    const direction = inferDirection(children);
     return children.sort((first, second) => {
       const firstIndex = manualOrder.indexOf(first.sourcePrimitiveIds[0]);
       const secondIndex = manualOrder.indexOf(second.sourcePrimitiveIds[0]);
@@ -436,9 +549,9 @@ export function inferWebsite(
         if (secondIndex < 0) return -1;
         return firstIndex - secondIndex;
       }
-      return first.bounds.y === second.bounds.y
-        ? first.bounds.x - second.bounds.x
-        : first.bounds.y - second.bounds.y;
+      return direction === 'horizontal'
+        ? first.bounds.x - second.bounds.x || first.bounds.y - second.bounds.y
+        : first.bounds.y - second.bounds.y || first.bounds.x - second.bounds.x;
     });
   };
 
@@ -447,6 +560,7 @@ export function inferWebsite(
       current.id,
       childrenByParent.get(current.id) ?? [],
     );
+    current.layout = current.type === 'cardGrid' ? 'grid' : inferDirection(current.children);
     current.children.forEach(attachChildren);
   };
   nodes.forEach((current) => {
@@ -463,9 +577,11 @@ export function inferWebsite(
           primitives.length
         : 0,
     children: sortChildren('page', childrenByParent.get('page') ?? []),
+    layout: 'vertical',
     sourcePrimitiveIds: primitives.map((primitive) => primitive.id),
   };
   tree.children.forEach(attachChildren);
+  tree.layout = inferDirection(tree.children);
 
   return { tree };
 }

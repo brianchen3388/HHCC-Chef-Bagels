@@ -11,7 +11,7 @@
 }
 
 * { box-sizing: border-box; }
-html, body { min-height: 100%; }
+html, body { height: 100%; min-height: 100%; overflow: hidden; }
 
 body {
   margin: 0;
@@ -25,9 +25,11 @@ button:disabled { color: inherit; cursor: default; opacity: 1; }
 
 .app-shell {
   display: grid;
-  grid-template-rows: 64px minmax(0, 1fr) 86px;
-  min-height: 100vh;
-  padding: 12px;
+  grid-template-rows: 56px minmax(0, 1fr) 72px;
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
+  padding: 8px;
 }
 
 .topbar {
@@ -120,6 +122,9 @@ button:disabled { color: inherit; cursor: default; opacity: 1; }
   display: grid;
   min-width: 0;
   min-height: 0;
+  width: 100%;
+  height: min(720px, 100%);
+  align-self: center;
   grid-template-rows: 70px 1fr 38px;
 }
 
@@ -620,6 +625,12 @@ button:disabled { color: inherit; cursor: default; opacity: 1; }
 .generated-field input { min-height: 34px; border: 1px solid #d9e0da; border-radius: 7px; padding: 0 9px; }
 .generated-divider { width: 86%; border: 0; border-top: 1px solid #dce3dd; }
 
+.generated-page-layout { width: 100%; min-height: 100%; }
+.generated-layout-horizontal { display: flex; flex-flow: row wrap; align-items: center; gap: 18px; }
+.generated-layout-vertical { display: flex; flex-direction: column; align-items: stretch; gap: 14px; }
+.generated-divider.horizontal { width: 86%; height: 1px; min-height: 1px; border: 0; background: #dce3dd; }
+.generated-divider.vertical { width: 1px; min-width: 1px; min-height: 84px; align-self: stretch; border: 0; background: #dce3dd; }
+
 .preview-viewport.tablet .generated-card-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .preview-viewport.mobile .generated-nav div { display: none; }
 .preview-viewport.mobile .generated-nav button { display: block; }
@@ -716,9 +727,10 @@ button:disabled { color: inherit; cursor: default; opacity: 1; }
 .inspector button:disabled { opacity: 0.4; }
 
 @media (max-width: 900px) {
-  .app-shell { display: block; padding: 8px; }
+  html, body { height: auto; overflow: auto; }
+  .app-shell { display: block; height: auto; min-height: 100vh; overflow: visible; padding: 8px; }
   .topbar { min-height: 58px; }
-  .workspace { grid-template-columns: 1fr; overflow: visible; }
+  .workspace { height: auto; grid-template-columns: 1fr; overflow: visible; }
   .sketch-panel { height: min(720px, calc(100vh - 74px)); min-height: 520px; border-right: 0; border-bottom: 1px solid var(--line); }
   .inspector { min-height: 86px; }
 }

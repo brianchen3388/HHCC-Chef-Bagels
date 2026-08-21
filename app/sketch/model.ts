@@ -52,6 +52,9 @@ export type PrimitiveType =
   | 'input'
   | 'divider';
 
+export type LayoutDirection = 'horizontal' | 'vertical' | 'grid';
+export type DividerOrientation = 'horizontal' | 'vertical';
+
 export type RecognizedPrimitive = {
   id: string;
   sourceItemIds: string[];
@@ -60,6 +63,7 @@ export type RecognizedPrimitive = {
   confidence: number;
   manuallyCorrected: boolean;
   content?: string;
+  orientation?: DividerOrientation;
 };
 
 export type WebsiteNodeType =
@@ -93,6 +97,8 @@ export type WebsiteNode = {
   confidence: number;
   children: WebsiteNode[];
   content?: string;
+  layout?: LayoutDirection;
+  orientation?: DividerOrientation;
   sourcePrimitiveIds: string[];
 };
 
