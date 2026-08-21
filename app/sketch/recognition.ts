@@ -518,6 +518,27 @@ export function inferWebsite(
     }
   });
 
+  nodes.forEach((current) => {
+    const parent = nodes.get(parentByNodeId[current.id]);
+    const primitiveId = current.sourcePrimitiveIds[0];
+    const inferredContainerType = [
+      'navbar',
+      'hero',
+      'section',
+      'cardGrid',
+      'card',
+      'footer',
+    ].includes(current.type);
+    if (parent?.type !== 'form' || overrides[primitiveId] || !inferredContainerType) return;
+
+    const height = visualHeight(current.bounds.height);
+    const looksLikeButton =
+      current.bounds.width < 0.27 && height < 0.13 && current.bounds.width / height > 1.5;
+    current.type = looksLikeButton ? 'button' : 'input';
+    current.content = looksLikeButton ? 'Submit' : 'Your details';
+    current.confidence = Math.max(current.confidence, 0.9);
+  });
+
   const childrenByParent = new Map<string, WebsiteNode[]>();
   nodes.forEach((current) => {
     const parentId = parentByNodeId[current.id] ?? 'page';
@@ -526,46 +547,84 @@ export function inferWebsite(
     childrenByParent.set(parentId, siblings);
   });
 
-  const inferDirection = (children: WebsiteNode[]): LayoutDirection => {
-    if (children.length < 2) return 'vertical';
-    const centers = children.map((child) => boundsCenter(child.bounds));
-    const horizontalSpread = Math.max(...centers.map((center) => center.x)) -
-      Math.min(...centers.map((center) => center.x));
-    const verticalSpread = (
-      Math.max(...centers.map((center) => center.y)) -
-      Math.min(...centers.map((center) => center.y))
-    ) * CANVAS_PAGE_RATIO;
-    return horizontalSpread > verticalSpread * 1.15 ? 'horizontal' : 'vertical';
-  };
-
-  const sortChildren = (parentId: string, children: WebsiteNode[]) => {
+  const arrangeChildren = (parentId: string, children: WebsiteNode[]) => {
     const manualOrder = layout.orderByParentId[parentId] ?? [];
-    const direction = inferDirection(children);
-    return children.sort((first, second) => {
-      const firstIndex = manualOrder.indexOf(first.sourcePrimitiveIds[0]);
-      const secondIndex = manualOrder.indexOf(second.sourcePrimitiveIds[0]);
-      if (firstIndex >= 0 || secondIndex >= 0) {
-        if (firstIndex < 0) return 1;
-        if (secondIndex < 0) return -1;
-        return firstIndex - secondIndex;
-      }
-      return direction === 'horizontal'
-        ? first.bounds.x - second.bounds.x || first.bounds.y - second.bounds.y
-        : first.bounds.y - second.bounds.y || first.bounds.x - second.bounds.x;
+    const spatialOrder = [...children].sort(
+      (first, second) => first.bounds.y - second.bounds.y || first.bounds.x - second.bounds.x,
+    );
+    const rows: WebsiteNode[][] = [];
+
+    spatialOrder.forEach((child) => {
+      const childCenter = boundsCenter(child.bounds);
+      let nearestRow: WebsiteNode[] | null = null;
+      let nearestPairIsHorizontal = false;
+      let bestDistance = Number.POSITIVE_INFINITY;
+
+      rows.forEach((row) => {
+        row.forEach((candidate) => {
+          const candidateCenter = boundsCenter(candidate.bounds);
+          const horizontalDistance = Math.abs(childCenter.x - candidateCenter.x);
+          const verticalDistance =
+            Math.abs(childCenter.y - candidateCenter.y) * CANVAS_PAGE_RATIO;
+          const pairDistance = Math.hypot(horizontalDistance, verticalDistance);
+          if (pairDistance < bestDistance) {
+            nearestRow = row;
+            nearestPairIsHorizontal = horizontalDistance > verticalDistance;
+            bestDistance = pairDistance;
+          }
+        });
+      });
+
+      if (nearestRow && nearestPairIsHorizontal) nearestRow.push(child);
+      else rows.push([child]);
     });
+
+    rows.forEach((row) =>
+      row.sort((first, second) => first.bounds.x - second.bounds.x),
+    );
+    rows.sort(
+      (first, second) =>
+        Math.min(...first.map((child) => child.bounds.y)) -
+        Math.min(...second.map((child) => child.bounds.y)),
+    );
+
+    if (manualOrder.length > 0) {
+      const rank = (node: WebsiteNode) => {
+        const index = manualOrder.indexOf(node.sourcePrimitiveIds[0]);
+        return index < 0 ? Number.POSITIVE_INFINITY : index;
+      };
+      rows.forEach((row) => row.sort((first, second) => rank(first) - rank(second)));
+      rows.sort(
+        (first, second) => Math.min(...first.map(rank)) - Math.min(...second.map(rank)),
+      );
+    }
+
+    const hasHorizontalRow = rows.some((row) => row.length > 1);
+    const direction: LayoutDirection =
+      rows.length === 1 && hasHorizontalRow
+        ? 'horizontal'
+        : rows.length > 1 && hasHorizontalRow
+          ? 'mixed'
+          : 'vertical';
+    return {
+      children: rows.flat(),
+      childRows: rows.map((row) => row.map((child) => child.id)),
+      direction,
+    };
   };
 
   const attachChildren = (current: WebsiteNode) => {
-    current.children = sortChildren(
+    const arrangement = arrangeChildren(
       current.id,
       childrenByParent.get(current.id) ?? [],
     );
-    current.layout = current.type === 'cardGrid' ? 'grid' : inferDirection(current.children);
+    current.children = arrangement.children;
+    current.childRows = arrangement.childRows;
+    current.layout = current.type === 'cardGrid' ? 'grid' : arrangement.direction;
     current.children.forEach(attachChildren);
   };
-  nodes.forEach((current) => {
-    if (canContain(current.type)) attachChildren(current);
-  });
+
+  const rootArrangement = arrangeChildren('page', childrenByParent.get('page') ?? []);
 
   const tree: WebsiteNode = {
     id: 'page',
@@ -576,12 +635,12 @@ export function inferWebsite(
         ? primitives.reduce((sum, primitive) => sum + primitive.confidence, 0) /
           primitives.length
         : 0,
-    children: sortChildren('page', childrenByParent.get('page') ?? []),
-    layout: 'vertical',
+    children: rootArrangement.children,
+    childRows: rootArrangement.childRows,
+    layout: rootArrangement.direction,
     sourcePrimitiveIds: primitives.map((primitive) => primitive.id),
   };
   tree.children.forEach(attachChildren);
-  tree.layout = inferDirection(tree.children);
 
   return { tree };
 }

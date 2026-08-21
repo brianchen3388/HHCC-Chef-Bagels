@@ -20,33 +20,46 @@ function nestedText(node: WebsiteNode) {
     .join(' ');
 }
 
-function layoutClass(node: WebsiteNode) {
-  return `layout-${node.layout ?? 'vertical'}`;
+function renderRows(node: WebsiteNode, depth: number, insideForm: boolean): string[] {
+  const rows = node.childRows ?? node.children.map((child) => [child.id]);
+  if (rows.length === 0) return [];
+  const childById = new Map(node.children.map((child) => [child.id, child]));
+  const pad = '  '.repeat(depth);
+  const lines = [`${pad}<div className="mixed-layout">`];
+
+  rows.forEach((row) => {
+    lines.push(`${pad}  <div className="spatial-row${row.length === 1 ? ' single' : ''}">`);
+    row.forEach((childId) => {
+      const child = childById.get(childId);
+      if (child) lines.push(...renderNode(child, depth + 2, insideForm));
+    });
+    lines.push(`${pad}  </div>`);
+  });
+  lines.push(`${pad}</div>`);
+  return lines;
 }
 
 function renderNode(node: WebsiteNode, depth: number, insideForm = false): string[] {
   const pad = '  '.repeat(depth);
   const content = jsxText(node.content ?? '');
   const childIsInsideForm = insideForm || node.type === 'form';
-  const children = node.children.flatMap((child) =>
-    renderNode(child, depth + 1, childIsInsideForm),
-  );
+  const children = renderRows(node, depth + 1, childIsInsideForm);
 
   if (node.type === 'navbar') {
     return [
       `${pad}<nav className="site-nav">`,
       `${pad}  <a className="brand" href="#">${content || 'Studio'}</a>`,
-      `${pad}  <div className="nav-content ${layoutClass(node)}">`,
-      ...node.children.flatMap((child) => renderNode(child, depth + 2, childIsInsideForm)),
+      `${pad}  <div className="nav-content">`,
+      ...renderRows(node, depth + 2, childIsInsideForm),
       `${pad}  </div>`,
       `${pad}</nav>`,
     ];
   }
   if (node.type === 'hero') {
-    return [`${pad}<section className="hero ${layoutClass(node)}">`, ...children, `${pad}</section>`];
+    return [`${pad}<section className="hero">`, ...children, `${pad}</section>`];
   }
   if (node.type === 'section') {
-    return [`${pad}<section className="section ${layoutClass(node)}">`, ...children, `${pad}</section>`];
+    return [`${pad}<section className="section">`, ...children, `${pad}</section>`];
   }
   if (node.type === 'cardGrid') {
     return [
@@ -59,7 +72,7 @@ function renderNode(node: WebsiteNode, depth: number, insideForm = false): strin
   }
   if (node.type === 'card') {
     return [
-      `${pad}<article className="card ${layoutClass(node)}">`,
+      `${pad}<article className="card">`,
       ...(node.children.length > 0
         ? children
         : [
@@ -83,12 +96,14 @@ function renderNode(node: WebsiteNode, depth: number, insideForm = false): strin
     const rawLabel = nestedText(node) || node.content || 'Your details';
     const label = jsxText(rawLabel);
     return [
-      `${pad}<label htmlFor="${inputId}">${label}</label>`,
-      `${pad}<input id="${inputId}" name="${inputId}" placeholder="${jsxAttribute(rawLabel)}" />`,
+      `${pad}<label className="field" htmlFor="${inputId}">`,
+      `${pad}  ${label}`,
+      `${pad}  <input id="${inputId}" name="${inputId}" placeholder="${jsxAttribute(rawLabel)}" />`,
+      `${pad}</label>`,
     ];
   }
   if (node.type === 'form') {
-    return [`${pad}<form className="contact-form ${layoutClass(node)}">`, ...children, `${pad}</form>`];
+    return [`${pad}<form className="contact-form">`, ...children, `${pad}</form>`];
   }
   if (node.type === 'divider') {
     const orientation = node.orientation ?? (
@@ -100,7 +115,7 @@ function renderNode(node: WebsiteNode, depth: number, insideForm = false): strin
   }
   if (node.type === 'footer') {
     return [
-      `${pad}<footer className="${layoutClass(node)}">`,
+      `${pad}<footer>`,
       ...(node.children.length > 0 ? children : [`${pad}  ${content || '© 2026 Your studio'}`]),
       `${pad}</footer>`,
     ];
@@ -114,8 +129,8 @@ export function generateReact(site: GeneratedWebsite) {
     '',
     'export default function GeneratedSite() {',
     '  return (',
-    `    <main className="site ${layoutClass(site.tree)}">`,
-    ...site.tree.children.flatMap((child) => renderNode(child, 3)),
+    '    <main className="site">',
+    ...renderRows(site.tree, 3, false),
     '    </main>',
     '  );',
     '}',
@@ -148,13 +163,16 @@ body { margin: 0; color: var(--ink); font-family: Inter, sans-serif; }
 .primary-button { display: inline-flex; border: 0; border-radius: 10px; background: var(--accent); color: white; padding: 14px 20px; text-decoration: none; }
 .site-image { flex: 1 1 320px; min-height: 300px; border-radius: 24px; background: linear-gradient(145deg, #dcecdf, #9fc4ad); }
 .contact-form { display: grid; width: min(560px, 100%); gap: 10px; padding: 48px 6vw; }
+.field { display: grid; gap: 6px; }
 input { min-height: 48px; margin-bottom: 12px; border: 1px solid #cdd7cf; border-radius: 9px; padding: 0 14px; }
 .divider { flex: 0 0 auto; background: #dce3dd; }
 .divider-horizontal { width: 88%; height: 1px; }
 .divider-vertical { width: 1px; min-height: 96px; align-self: stretch; }
 footer { display: flex; align-items: center; gap: 20px; padding: 32px 6vw; color: var(--muted); }
-.layout-horizontal { display: flex; flex-flow: row wrap; align-items: center; gap: 24px; }
-.layout-vertical { display: flex; flex-direction: column; align-items: stretch; gap: 18px; }
+.mixed-layout { display: flex; width: 100%; flex-direction: column; gap: 18px; }
+.spatial-row { display: flex; width: 100%; flex-flow: row nowrap; align-items: center; gap: 24px; }
+.spatial-row.single { display: block; }
+.spatial-row > label, .spatial-row > .card, .spatial-row > .site-image { min-width: 0; flex: 1 1 0; }
 
 @media (max-width: 700px) {
   .site-nav, .nav-content { align-items: flex-start; flex-direction: column; }

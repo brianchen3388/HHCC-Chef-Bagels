@@ -626,8 +626,13 @@ button:disabled { color: inherit; cursor: default; opacity: 1; }
 .generated-divider { width: 86%; border: 0; border-top: 1px solid #dce3dd; }
 
 .generated-page-layout { width: 100%; min-height: 100%; }
-.generated-layout-horizontal { display: flex; flex-flow: row wrap; align-items: center; gap: 18px; }
-.generated-layout-vertical { display: flex; flex-direction: column; align-items: stretch; gap: 14px; }
+.generated-mixed-layout { display: flex; width: 100%; flex-direction: column; gap: 14px; }
+.generated-hero > .generated-mixed-layout { grid-column: 1 / -1; }
+.generated-spatial-row { display: flex; width: 100%; flex-flow: row nowrap; align-items: center; gap: 18px; }
+.generated-spatial-row.single { display: block; }
+.generated-spatial-row > .generated-field,
+.generated-spatial-row > .generated-card,
+.generated-spatial-row > .generated-image { min-width: 0; flex: 1 1 0; }
 .generated-divider.horizontal { width: 86%; height: 1px; min-height: 1px; border: 0; background: #dce3dd; }
 .generated-divider.vertical { width: 1px; min-width: 1px; min-height: 84px; align-self: stretch; border: 0; background: #dce3dd; }
 

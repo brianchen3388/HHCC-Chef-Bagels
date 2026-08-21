@@ -61,33 +61,52 @@ const containerTypes = new Set<WebsiteNode['type']>([
   'footer',
 ]);
 
-function generatedLayoutClass(node: WebsiteNode) {
-  return `generated-layout-${node.layout ?? 'vertical'}`;
+function GeneratedRows({ node, insideForm }: { node: WebsiteNode; insideForm: boolean }) {
+  const childById = new Map(node.children.map((child) => [child.id, child]));
+  const rows = node.childRows ?? node.children.map((child) => [child.id]);
+  if (rows.length === 0) return null;
+
+  return (
+    <div className="generated-mixed-layout">
+      {rows.map((row, index) => (
+        <div
+          className={row.length > 1 ? 'generated-spatial-row' : 'generated-spatial-row single'}
+          key={`${node.id}-row-${index}`}
+        >
+          {row.map((childId) => {
+            const child = childById.get(childId);
+            return child ? <GeneratedNode insideForm={insideForm} key={child.id} node={child} /> : null;
+          })}
+        </div>
+      ))}
+    </div>
+  );
 }
 
 function GeneratedNode({ node, insideForm = false }: { node: WebsiteNode; insideForm?: boolean }) {
   const childIsInsideForm = insideForm || node.type === 'form';
-  const children = node.children.map((child) => (
+  const directChildren = node.children.map((child) => (
     <GeneratedNode insideForm={childIsInsideForm} key={child.id} node={child} />
   ));
+  const groupedChildren = <GeneratedRows insideForm={childIsInsideForm} node={node} />;
 
   if (node.type === 'navbar') {
     return (
       <nav className="generated-nav">
         <strong>{node.content ?? 'Studio'}</strong>
-        <div className={`generated-nav-content ${generatedLayoutClass(node)}`}>{children}</div>
+        <div className="generated-nav-content">{groupedChildren}</div>
       </nav>
     );
   }
-  if (node.type === 'hero') return <section className={`generated-hero ${generatedLayoutClass(node)}`}>{children}</section>;
-  if (node.type === 'section') return <section className={`generated-section ${generatedLayoutClass(node)}`}>{children}</section>;
+  if (node.type === 'hero') return <section className="generated-hero">{groupedChildren}</section>;
+  if (node.type === 'section') return <section className="generated-section">{groupedChildren}</section>;
   if (node.type === 'cardGrid') {
-    return <section className="generated-features"><div className="generated-card-grid">{children}</div></section>;
+    return <section className="generated-features"><div className="generated-card-grid">{directChildren}</div></section>;
   }
   if (node.type === 'card') {
     return (
-      <article className={`generated-card ${generatedLayoutClass(node)}`}>
-        {children.length > 0 ? children : <><h2>{node.content ?? 'Feature'}</h2><p>Generated from your wireframe.</p></>}
+      <article className="generated-card">
+        {node.children.length > 0 ? groupedChildren : <><h2>{node.content ?? 'Feature'}</h2><p>Generated from your wireframe.</p></>}
       </article>
     );
   }
@@ -105,7 +124,7 @@ function GeneratedNode({ node, insideForm = false }: { node: WebsiteNode; inside
     return <label className="generated-field">{nestedLabel || node.content || 'Your details'}<input placeholder={nestedLabel || node.content} /></label>;
   }
   if (node.type === 'form') {
-    return <form className={`generated-form ${generatedLayoutClass(node)}`} onSubmit={(event) => event.preventDefault()}>{children}</form>;
+    return <form className="generated-form" onSubmit={(event) => event.preventDefault()}>{groupedChildren}</form>;
   }
   if (node.type === 'divider') {
     const orientation = node.orientation ?? (
@@ -113,7 +132,7 @@ function GeneratedNode({ node, insideForm = false }: { node: WebsiteNode; inside
     );
     return <div aria-orientation={orientation} className={`generated-divider ${orientation}`} role="separator" />;
   }
-  if (node.type === 'footer') return <footer className={generatedLayoutClass(node)}>{children.length > 0 ? children : node.content}</footer>;
+  if (node.type === 'footer') return <footer>{node.children.length > 0 ? groupedChildren : node.content}</footer>;
   return null;
 }
 
@@ -135,9 +154,7 @@ function GeneratedPreview({ site }: { site: GeneratedWebsite }) {
 
   return (
     <div className="generated-site-preview">
-      <div className={`generated-page-layout ${generatedLayoutClass(site.tree)}`}>
-        {site.tree.children.map((node) => <GeneratedNode key={node.id} node={node} />)}
-      </div>
+      <div className="generated-page-layout"><GeneratedRows insideForm={false} node={site.tree} /></div>
     </div>
   );
 }

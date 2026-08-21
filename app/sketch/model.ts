@@ -52,7 +52,7 @@ export type PrimitiveType =
   | 'input'
   | 'divider';
 
-export type LayoutDirection = 'horizontal' | 'vertical' | 'grid';
+export type LayoutDirection = 'horizontal' | 'vertical' | 'mixed' | 'grid';
 export type DividerOrientation = 'horizontal' | 'vertical';
 
 export type RecognizedPrimitive = {
@@ -96,6 +96,7 @@ export type WebsiteNode = {
   bounds: Bounds;
   confidence: number;
   children: WebsiteNode[];
+  childRows?: string[][];
   content?: string;
   layout?: LayoutDirection;
   orientation?: DividerOrientation;
