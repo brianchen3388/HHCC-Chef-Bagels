@@ -358,18 +358,6 @@ export function recognizeCanvas(items: CanvasItem[]) {
       return;
     }
 
-    if (item.kind === 'bitmap') {
-      primitives.push({
-        id: `primitive-${item.id}`,
-        sourceItemIds: [item.id],
-        type: 'image',
-        bounds: getCanvasItemBounds(item),
-        confidence: 1,
-        manuallyCorrected: false,
-        imageDataUrl: item.dataUrl,
-      });
-    }
-
   });
 
   groupRapidIntersectingStrokes(items).forEach((group) => {
@@ -502,7 +490,6 @@ export function inferWebsite(
       confidence: overrides[primitive.id] ? 1 : primitive.confidence,
       children: [],
       content: defaultContent(type, primitive),
-      imageDataUrl: primitive.imageDataUrl,
       orientation: primitive.orientation,
       sourcePrimitiveIds: [primitive.id],
     });
@@ -591,8 +578,10 @@ export function inferWebsite(
     const customization = customizations[current.sourcePrimitiveIds[0]];
     if (!customization) return;
     if (customization.content !== undefined) current.content = customization.content;
+    if (customization.imageDataUrl !== undefined) current.imageDataUrl = customization.imageDataUrl;
     if (customization.fontSize !== undefined) current.fontSize = customization.fontSize;
     if (customization.linkPageId !== undefined) current.linkPageId = customization.linkPageId;
+    if (customization.styleVariant !== undefined) current.styleVariant = customization.styleVariant;
   });
 
   const childrenByParent = new Map<string, WebsiteNode[]>();
@@ -631,7 +620,8 @@ export function inferWebsite(
         });
       });
 
-      if (nearestRow && nearestPairIsHorizontal) nearestRow.push(child);
+      const targetRow = nearestRow as WebsiteNode[] | null;
+      if (targetRow && nearestPairIsHorizontal) targetRow.push(child);
       else rows.push([child]);
     });
 

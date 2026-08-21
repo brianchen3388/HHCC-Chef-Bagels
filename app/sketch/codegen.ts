@@ -20,6 +20,10 @@ function nestedText(node: WebsiteNode) {
     .join(' ');
 }
 
+function variantClass(node: WebsiteNode, base: string) {
+  return node.styleVariant === 'alternate' ? `${base} variant-alternate` : base;
+}
+
 function renderRows(
   node: WebsiteNode,
   depth: number,
@@ -58,8 +62,8 @@ function renderNode(
 
   if (node.type === 'navbar') {
     return [
-      `${pad}<nav className="site-nav">`,
-      `${pad}  <a className="brand" href="#">${content || 'Studio'}</a>`,
+      `${pad}<nav className="${variantClass(node, 'site-nav')}">`,
+      `${pad}  <a className="brand" href="#"${textStyle}>${content || 'Studio'}</a>`,
       `${pad}  <div className="nav-content">`,
       ...renderRows(node, depth + 2, childIsInsideForm, pageById),
       `${pad}  </div>`,
@@ -67,14 +71,14 @@ function renderNode(
     ];
   }
   if (node.type === 'hero') {
-    return [`${pad}<section className="hero">`, ...children, `${pad}</section>`];
+    return [`${pad}<section className="${variantClass(node, 'hero')}">`, ...children, `${pad}</section>`];
   }
   if (node.type === 'section') {
-    return [`${pad}<section className="section">`, ...children, `${pad}</section>`];
+    return [`${pad}<section className="${variantClass(node, 'section')}">`, ...children, `${pad}</section>`];
   }
   if (node.type === 'cardGrid') {
     return [
-      `${pad}<section className="features">`,
+      `${pad}<section className="${variantClass(node, 'features')}">`,
       `${pad}  <div className="card-grid">`,
       ...node.children.flatMap((child) => renderNode(child, depth + 2, childIsInsideForm, pageById)),
       `${pad}  </div>`,
@@ -83,7 +87,7 @@ function renderNode(
   }
   if (node.type === 'card') {
     return [
-      `${pad}<article className="card">`,
+      `${pad}<article className="${variantClass(node, 'card')}">`,
       ...(node.children.length > 0
         ? children
         : [
@@ -93,49 +97,49 @@ function renderNode(
       `${pad}</article>`,
     ];
   }
-  if (node.type === 'heading') return [`${pad}<h1${textStyle}>${content || 'Your headline'}</h1>`];
-  if (node.type === 'paragraph') return [`${pad}<p${textStyle}>${content || 'Your supporting copy.'}</p>`];
+  if (node.type === 'heading') return [`${pad}<h1 className="${variantClass(node, 'site-heading')}"${textStyle}>${content || 'Your headline'}</h1>`];
+  if (node.type === 'paragraph') return [`${pad}<p className="${variantClass(node, 'site-paragraph')}"${textStyle}>${content || 'Your supporting copy.'}</p>`];
   if (node.type === 'image') {
     if (node.imageDataUrl) {
       return [
-        `${pad}<img className="site-image imported" src="${jsxAttribute(node.imageDataUrl)}" alt="" />`,
+        `${pad}<img className="${variantClass(node, 'site-image imported')}" src="${jsxAttribute(node.imageDataUrl)}" alt="" />`,
       ];
     }
-    return [`${pad}<div className="site-image" role="img" aria-label="Website visual" />`];
+    return [`${pad}<div className="${variantClass(node, 'site-image')}" role="img" aria-label="Website visual" />`];
   }
   if (node.type === 'button') {
     const label = content || jsxText(nestedText(node)) || 'Get started';
     const linkedPage = node.linkPageId ? pageById.get(node.linkPageId) : undefined;
     if (linkedPage) {
-      return [`${pad}<a className="primary-button" href="/${jsxAttribute(linkedPage.slug)}"${textStyle}>${label}</a>`];
+      return [`${pad}<a className="${variantClass(node, 'primary-button')}" href="/${jsxAttribute(linkedPage.slug)}"${textStyle}>${label}</a>`];
     }
-    return [`${pad}<button className="primary-button" type="${insideForm ? 'submit' : 'button'}"${textStyle}>${label}</button>`];
+    return [`${pad}<button className="${variantClass(node, 'primary-button')}" type="${insideForm ? 'submit' : 'button'}"${textStyle}>${label}</button>`];
   }
   if (node.type === 'input') {
     const inputId = node.id.replace(/[^a-zA-Z0-9-]/g, '');
     const rawLabel = nestedText(node) || node.content || 'Your details';
     const label = jsxText(rawLabel);
     return [
-      `${pad}<label className="field" htmlFor="${inputId}">`,
+      `${pad}<label className="${variantClass(node, 'field')}" htmlFor="${inputId}">`,
       `${pad}  ${label}`,
       `${pad}  <input id="${inputId}" name="${inputId}" placeholder="${jsxAttribute(rawLabel)}" />`,
       `${pad}</label>`,
     ];
   }
   if (node.type === 'form') {
-    return [`${pad}<form className="contact-form">`, ...children, `${pad}</form>`];
+    return [`${pad}<form className="${variantClass(node, 'contact-form')}">`, ...children, `${pad}</form>`];
   }
   if (node.type === 'divider') {
     const orientation = node.orientation ?? (
       node.bounds.width >= node.bounds.height * CANVAS_PAGE_RATIO ? 'horizontal' : 'vertical'
     );
     return [
-      `${pad}<div className="divider divider-${orientation}" role="separator" aria-orientation="${orientation}" />`,
+      `${pad}<div className="${variantClass(node, `divider divider-${orientation}`)}" role="separator" aria-orientation="${orientation}" />`,
     ];
   }
   if (node.type === 'footer') {
     return [
-      `${pad}<footer>`,
+      `${pad}<footer className="${variantClass(node, 'site-footer')}">`,
       ...(node.children.length > 0 ? children : [`${pad}  ${content || '© 2026 Your studio'}`]),
       `${pad}</footer>`,
     ];
@@ -205,7 +209,7 @@ body { margin: 0; color: var(--ink); font-family: Inter, sans-serif; }
 .card p { color: var(--muted); line-height: 1.6; }
 .primary-button { display: inline-flex; min-width: 0; align-items: center; justify-content: center; border: 0; border-radius: 10px; background: var(--accent); color: white; padding: 14px 20px; overflow-wrap: anywhere; text-align: center; text-decoration: none; white-space: normal; }
 .site-image { flex: 1 1 320px; min-height: 300px; border-radius: 24px; background: linear-gradient(145deg, #dcecdf, #9fc4ad); }
-.site-image.imported { width: 100%; height: auto; min-height: 0; background: white; image-rendering: pixelated; object-fit: contain; }
+.site-image.imported { width: 100%; height: auto; min-height: 0; background: white; object-fit: contain; }
 .contact-form { display: grid; width: min(560px, 100%); gap: 10px; padding: 48px 6vw; }
 .field { display: grid; gap: 6px; }
 input { min-height: 48px; margin-bottom: 12px; border: 1px solid #cdd7cf; border-radius: 9px; padding: 0 14px; }
@@ -218,6 +222,21 @@ footer { display: flex; align-items: center; gap: 20px; padding: 32px 6vw; color
 .spatial-row.single { display: block; }
 .spatial-row:not(.single) > * { min-width: 0; max-width: 100%; flex: 1 1 0; }
 .spatial-row:not(.single) > .primary-button { width: 100%; }
+.site-nav.variant-alternate { background: var(--ink); color: white; }
+.site-nav.variant-alternate .brand { color: white; }
+.hero.variant-alternate { justify-content: center; background: linear-gradient(135deg, #edf7f0, #d4eadb); text-align: center; }
+.section.variant-alternate { margin: 24px 4vw; border: 1px solid #bdd2c4; border-radius: 20px; background: #f7faf7; }
+.features.variant-alternate { background: #dfece2; }
+.card.variant-alternate { border: 2px solid var(--accent); box-shadow: 0 10px 28px rgb(36 107 71 / 12%); }
+.site-heading.variant-alternate { color: var(--accent); font-family: Georgia, serif; font-style: italic; }
+.site-paragraph.variant-alternate { border-left: 4px solid var(--accent); background: #f0f6f2; padding: 12px 16px; }
+.site-image.variant-alternate { border: 5px solid var(--ink); border-radius: 4px; box-shadow: 8px 8px 0 #a9c7b3; }
+.primary-button.variant-alternate { border: 2px solid var(--accent); background: transparent; color: var(--accent); }
+.field.variant-alternate { border-radius: 12px; background: #edf5ef; padding: 12px; }
+.contact-form.variant-alternate { margin: 24px 6vw; border: 1px solid #bdd2c4; border-radius: 18px; background: white; box-shadow: 0 14px 34px rgb(23 33 27 / 10%); }
+.divider.variant-alternate { background: repeating-linear-gradient(90deg, var(--accent) 0 10px, transparent 10px 17px); }
+.divider-vertical.variant-alternate { background: repeating-linear-gradient(180deg, var(--accent) 0 10px, transparent 10px 17px); }
+.site-footer.variant-alternate { background: var(--ink); color: white; }
 
 @media (max-width: 700px) {
   .site-nav { align-items: center; gap: 12px; padding: 16px 4vw; }

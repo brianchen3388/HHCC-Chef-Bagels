@@ -1,6 +1,13 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type MouseEvent as ReactMouseEvent,
+} from 'react';
 import DrawingWorkspace from './DrawingWorkspace';
 import { generateCss, generateReact } from './sketch/codegen';
 import type {
@@ -93,15 +100,26 @@ const containerTypes = new Set<WebsiteNode['type']>([
   'footer',
 ]);
 
+function generatedNodeClass(node: WebsiteNode, base: string, selectedId: string | null) {
+  return [
+    base,
+    'generated-style-target',
+    node.styleVariant === 'alternate' ? 'variant-alternate' : '',
+    selectedId === node.id ? 'selected' : '',
+  ].filter(Boolean).join(' ');
+}
+
 function GeneratedRows({
   node,
   insideForm,
+  onImageSelect,
   onNavigate,
   onSelect,
   selectedId,
 }: {
   node: WebsiteNode;
   insideForm: boolean;
+  onImageSelect: (node: WebsiteNode) => void;
   onNavigate: (pageId: string) => void;
   onSelect: (node: WebsiteNode) => void;
   selectedId: string | null;
@@ -124,6 +142,7 @@ function GeneratedRows({
                 insideForm={insideForm}
                 key={child.id}
                 node={child}
+                onImageSelect={onImageSelect}
                 onNavigate={onNavigate}
                 onSelect={onSelect}
                 selectedId={selectedId}
@@ -139,12 +158,14 @@ function GeneratedRows({
 function GeneratedNode({
   node,
   insideForm = false,
+  onImageSelect,
   onNavigate,
   onSelect,
   selectedId,
 }: {
   node: WebsiteNode;
   insideForm?: boolean;
+  onImageSelect: (node: WebsiteNode) => void;
   onNavigate: (pageId: string) => void;
   onSelect: (node: WebsiteNode) => void;
   selectedId: string | null;
@@ -155,6 +176,7 @@ function GeneratedNode({
       insideForm={childIsInsideForm}
       key={child.id}
       node={child}
+      onImageSelect={onImageSelect}
       onNavigate={onNavigate}
       onSelect={onSelect}
       selectedId={selectedId}
@@ -164,34 +186,38 @@ function GeneratedNode({
     <GeneratedRows
       insideForm={childIsInsideForm}
       node={node}
+      onImageSelect={onImageSelect}
       onNavigate={onNavigate}
       onSelect={onSelect}
       selectedId={selectedId}
     />
   );
-  const editableClass = selectedId === node.id ? 'generated-editable selected' : 'generated-editable';
+  const selectNode = (event: ReactMouseEvent<HTMLElement>) => {
+    event.stopPropagation();
+    onSelect(node);
+  };
   const editableProps = {
-    className: editableClass,
-    onClick: () => onSelect(node),
+    className: `${generatedNodeClass(node, 'generated-editable', selectedId)}`,
+    onClick: selectNode,
     style: node.fontSize ? { fontSize: `${node.fontSize}px` } : undefined,
   };
 
   if (node.type === 'navbar') {
     return (
-      <nav className="generated-nav">
-        <strong>{node.content ?? 'Studio'}</strong>
+      <nav className={generatedNodeClass(node, 'generated-nav', selectedId)} onClick={selectNode}>
+        <strong onClick={selectNode} style={node.fontSize ? { fontSize: `${node.fontSize}px` } : undefined}>{node.content ?? 'Studio'}</strong>
         <div className="generated-nav-content">{groupedChildren}</div>
       </nav>
     );
   }
-  if (node.type === 'hero') return <section className="generated-hero">{groupedChildren}</section>;
-  if (node.type === 'section') return <section className="generated-section">{groupedChildren}</section>;
+  if (node.type === 'hero') return <section className={generatedNodeClass(node, 'generated-hero', selectedId)} onClick={selectNode}>{groupedChildren}</section>;
+  if (node.type === 'section') return <section className={generatedNodeClass(node, 'generated-section', selectedId)} onClick={selectNode}>{groupedChildren}</section>;
   if (node.type === 'cardGrid') {
-    return <section className="generated-features"><div className="generated-card-grid">{directChildren}</div></section>;
+    return <section className={generatedNodeClass(node, 'generated-features', selectedId)} onClick={selectNode}><div className="generated-card-grid">{directChildren}</div></section>;
   }
   if (node.type === 'card') {
     return (
-      <article className="generated-card">
+      <article className={generatedNodeClass(node, 'generated-card', selectedId)} onClick={selectNode}>
         {node.children.length > 0 ? groupedChildren : <><h2>{node.content ?? 'Feature'}</h2><p>Generated from your wireframe.</p></>}
       </article>
     );
@@ -205,8 +231,12 @@ function GeneratedNode({
   if (node.type === 'image') {
     return (
       <div
-        aria-label={node.imageDataUrl ? 'Imported black and white image' : 'Generated visual placeholder'}
-        className={node.imageDataUrl ? 'generated-image imported' : 'generated-image'}
+        aria-label={node.imageDataUrl ? 'Imported image' : 'Generated visual placeholder'}
+        className={generatedNodeClass(node, node.imageDataUrl ? 'generated-image imported' : 'generated-image', selectedId)}
+        onClick={(event) => {
+          selectNode(event);
+          onImageSelect(node);
+        }}
         role="img"
         style={node.imageDataUrl ? { backgroundImage: `url(${node.imageDataUrl})` } : undefined}
       >
@@ -218,10 +248,9 @@ function GeneratedNode({
     const label = node.content || nestedLabel || 'Get started';
     return (
       <button
-        className={selectedId === node.id
-          ? 'generated-button generated-editable selected'
-          : 'generated-button generated-editable'}
-        onClick={() => {
+        className={generatedNodeClass(node, 'generated-button generated-editable', selectedId)}
+        onClick={(event) => {
+          event.stopPropagation();
           if (node.linkPageId && selectedId === node.id) {
             onNavigate(node.linkPageId);
           } else {
@@ -237,27 +266,29 @@ function GeneratedNode({
     );
   }
   if (node.type === 'input') {
-    return <label className="generated-field">{nestedLabel || node.content || 'Your details'}<input placeholder={nestedLabel || node.content} /></label>;
+    return <label className={generatedNodeClass(node, 'generated-field', selectedId)} onClick={selectNode}>{nestedLabel || node.content || 'Your details'}<input placeholder={nestedLabel || node.content} /></label>;
   }
   if (node.type === 'form') {
-    return <form className="generated-form" onSubmit={(event) => event.preventDefault()}>{groupedChildren}</form>;
+    return <form className={generatedNodeClass(node, 'generated-form', selectedId)} onClick={selectNode} onSubmit={(event) => event.preventDefault()}>{groupedChildren}</form>;
   }
   if (node.type === 'divider') {
     const orientation = node.orientation ?? (
       node.bounds.width >= node.bounds.height * CANVAS_PAGE_RATIO ? 'horizontal' : 'vertical'
     );
-    return <div aria-orientation={orientation} className={`generated-divider ${orientation}`} role="separator" />;
+    return <div aria-orientation={orientation} className={generatedNodeClass(node, `generated-divider ${orientation}`, selectedId)} onClick={selectNode} role="separator" />;
   }
-  if (node.type === 'footer') return <footer>{node.children.length > 0 ? groupedChildren : node.content}</footer>;
+  if (node.type === 'footer') return <footer className={generatedNodeClass(node, 'generated-footer', selectedId)} onClick={selectNode}>{node.children.length > 0 ? groupedChildren : node.content}</footer>;
   return null;
 }
 
 function GeneratedPreview({
+  onImageSelect,
   onSelect,
   onNavigate,
   selectedId,
   site,
 }: {
+  onImageSelect: (node: WebsiteNode) => void;
   onSelect: (node: WebsiteNode) => void;
   onNavigate: (pageId: string) => void;
   selectedId: string | null;
@@ -284,6 +315,7 @@ function GeneratedPreview({
         <GeneratedRows
           insideForm={false}
           node={site.tree}
+          onImageSelect={onImageSelect}
           onNavigate={onNavigate}
           onSelect={onSelect}
           selectedId={selectedId}
@@ -428,13 +460,18 @@ function OutputPanel({
 }: OutputPanelProps) {
   const [selectedSourceIds, setSelectedSourceIds] = useState<string[]>([]);
   const [selectedPreviewSourceId, setSelectedPreviewSourceId] = useState<string | null>(null);
+  const previewImageInputRef = useRef<HTMLInputElement>(null);
+  const previewImageSourceIdRef = useRef<string | null>(null);
   const selectedStructureNode = findStructureNode(site.tree, selectedSourceIds);
   const selectedPreviewNode = selectedPreviewSourceId
     ? findNodeBySourceId(site.tree, selectedPreviewSourceId)
     : null;
-  const editablePreviewNode = selectedPreviewNode && ['heading', 'paragraph', 'button'].includes(selectedPreviewNode.type)
-    ? selectedPreviewNode
-    : null;
+  const contentEditable = selectedPreviewNode
+    ? ['navbar', 'heading', 'paragraph', 'button', 'card', 'footer'].includes(selectedPreviewNode.type)
+    : false;
+  const fontSizeEditable = selectedPreviewNode
+    ? ['navbar', 'heading', 'paragraph', 'button'].includes(selectedPreviewNode.type)
+    : false;
   const activePage = pages.find((page) => page.id === activePageId);
   const selectedOverride = selectedStructureNode?.sourcePrimitiveIds
     .map((id) => overrides[id])
@@ -461,6 +498,36 @@ function OutputPanel({
     ? manualParentId
     : 'automatic';
 
+  function choosePreviewImage(node: WebsiteNode) {
+    const sourceId = node.sourcePrimitiveIds[0];
+    if (!sourceId) return;
+    previewImageSourceIdRef.current = sourceId;
+    previewImageInputRef.current?.click();
+  }
+
+  async function replacePreviewImage(event: ChangeEvent<HTMLInputElement>) {
+    const input = event.currentTarget;
+    const file = input.files?.[0];
+    const sourceId = previewImageSourceIdRef.current;
+    if (!file || !sourceId) return;
+
+    try {
+      const imageDataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.addEventListener('load', () => (
+          typeof reader.result === 'string' ? resolve(reader.result) : reject(new Error('Invalid image'))
+        ));
+        reader.addEventListener('error', () => reject(reader.error));
+        reader.readAsDataURL(file);
+      });
+      onElementEdit(sourceId, { imageDataUrl });
+    } catch {
+      // Keep the current image when the selected file cannot be read.
+    } finally {
+      input.value = '';
+    }
+  }
+
   return (
     <section className="panel preview-panel" aria-labelledby="preview-heading">
       <div className="panel-heading">
@@ -485,34 +552,60 @@ function OutputPanel({
 
       {outputView === 'preview' && (
         <div className="preview-stage">
+          <input
+            accept="image/*"
+            hidden
+            onChange={(event) => void replacePreviewImage(event)}
+            ref={previewImageInputRef}
+            type="file"
+          />
           <div className="live-content-editor">
-            {editablePreviewNode && selectedPreviewSourceId ? (
+            {selectedPreviewNode && selectedPreviewSourceId ? (
               <>
+                {contentEditable && (
+                  <label>
+                    {selectedPreviewNode.type === 'navbar' ? 'Navbar name' : 'Text'}
+                    <input
+                      onChange={(event) => onElementEdit(selectedPreviewSourceId, { content: event.target.value })}
+                      type="text"
+                      value={selectedPreviewNode.content ?? ''}
+                    />
+                  </label>
+                )}
+                {fontSizeEditable && (
+                  <label className="font-size-control">
+                    Font size
+                    <input
+                      max="96"
+                      min="8"
+                      onChange={(event) => onElementEdit(selectedPreviewSourceId, { fontSize: Number(event.target.value) })}
+                      type="number"
+                      value={selectedPreviewNode.fontSize ?? (selectedPreviewNode.type === 'heading' ? 32 : 10)}
+                    />
+                  </label>
+                )}
                 <label>
-                  Text
-                  <input
-                    onChange={(event) => onElementEdit(selectedPreviewSourceId, { content: event.target.value })}
-                    type="text"
-                    value={editablePreviewNode.content ?? ''}
-                  />
+                  Style
+                  <select
+                    onChange={(event) => onElementEdit(selectedPreviewSourceId, { styleVariant: event.target.value as 'default' | 'alternate' })}
+                    value={selectedPreviewNode.styleVariant ?? 'default'}
+                  >
+                    <option value="default">Default</option>
+                    <option value="alternate">Alternate</option>
+                  </select>
                 </label>
-                <label className="font-size-control">
-                  Font size
-                  <input
-                    max="96"
-                    min="8"
-                    onChange={(event) => onElementEdit(selectedPreviewSourceId, { fontSize: Number(event.target.value) })}
-                    type="number"
-                    value={editablePreviewNode.fontSize ?? (editablePreviewNode.type === 'heading' ? 32 : 10)}
-                  />
-                </label>
-                {editablePreviewNode.type === 'button' && (
+                {selectedPreviewNode.type === 'image' && (
+                  <button onClick={() => choosePreviewImage(selectedPreviewNode)} type="button">
+                    Replace image
+                  </button>
+                )}
+                {selectedPreviewNode.type === 'button' && (
                   <>
                     <label>
                       Link to page
                       <select
                         onChange={(event) => onElementEdit(selectedPreviewSourceId, { linkPageId: event.target.value })}
-                        value={editablePreviewNode.linkPageId ?? ''}
+                        value={selectedPreviewNode.linkPageId ?? ''}
                       >
                         <option value="">No page link</option>
                         {pages.map((page) => (
@@ -523,8 +616,8 @@ function OutputPanel({
                     <button onClick={() => onCreateLinkedPage(selectedPreviewSourceId)} type="button">
                       New linked page
                     </button>
-                    {editablePreviewNode.linkPageId && (
-                      <button onClick={() => onPageChange(editablePreviewNode.linkPageId!)} type="button">
+                    {selectedPreviewNode.linkPageId && (
+                      <button onClick={() => onPageChange(selectedPreviewNode.linkPageId!)} type="button">
                         Open linked page
                       </button>
                     )}
@@ -532,7 +625,7 @@ function OutputPanel({
                 )}
               </>
             ) : (
-              <p>Click a heading, paragraph, or button in the website to edit it.</p>
+              <p>Click any item in the website to edit its style and content.</p>
             )}
           </div>
           <div className={`preview-viewport ${previewSize}`}>
@@ -544,6 +637,7 @@ function OutputPanel({
                 <div>your-site.local/{activePage?.slug ?? ''}</div>
               </div>
               <GeneratedPreview
+                onImageSelect={choosePreviewImage}
                 onNavigate={onPageChange}
                 onSelect={(node) => setSelectedPreviewSourceId(node.sourcePrimitiveIds[0] ?? null)}
                 selectedId={selectedPreviewNode?.id ?? null}

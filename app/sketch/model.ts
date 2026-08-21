@@ -34,18 +34,7 @@ export type TextItem = {
   content: string;
 };
 
-export type BitmapItem = {
-  id: string;
-  kind: 'bitmap';
-  position: Point;
-  width: number;
-  height: number;
-  pixelWidth: number;
-  pixelHeight: number;
-  dataUrl: string;
-};
-
-export type CanvasItem = PenItem | LineItem | FrameItem | TextItem | BitmapItem;
+export type CanvasItem = PenItem | LineItem | FrameItem | TextItem;
 export type DrawableItem = PenItem | LineItem | FrameItem;
 
 export type Bounds = {
@@ -74,7 +63,6 @@ export type RecognizedPrimitive = {
   confidence: number;
   manuallyCorrected: boolean;
   content?: string;
-  imageDataUrl?: string;
   orientation?: DividerOrientation;
 };
 
@@ -107,6 +95,7 @@ export type ElementCustomization = {
   imageDataUrl?: string;
   fontSize?: number;
   linkPageId?: string;
+  styleVariant?: 'default' | 'alternate';
 };
 
 export type ElementCustomizations = Record<string, ElementCustomization>;
@@ -119,8 +108,10 @@ export type WebsiteNode = {
   children: WebsiteNode[];
   childRows?: string[][];
   content?: string;
+  imageDataUrl?: string;
   fontSize?: number;
   linkPageId?: string;
+  styleVariant?: 'default' | 'alternate';
   layout?: LayoutDirection;
   orientation?: DividerOrientation;
   sourcePrimitiveIds: string[];
@@ -142,15 +133,6 @@ export function clamp(value: number, minimum = 0, maximum = 1) {
 }
 
 export function getCanvasItemBounds(item: CanvasItem): Bounds {
-  if (item.kind === 'bitmap') {
-    return {
-      x: item.position.x,
-      y: item.position.y,
-      width: item.width,
-      height: item.height,
-    };
-  }
-
   if (item.kind === 'text') {
     const width = Math.max(0.055, item.content.length * 0.016);
     return {

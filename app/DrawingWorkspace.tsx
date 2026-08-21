@@ -4,7 +4,6 @@ import {
   useEffect,
   useRef,
   useState,
-  type ChangeEvent,
   type PointerEvent as ReactPointerEvent,
 } from 'react';
 import {
@@ -154,7 +153,7 @@ function itemContainsPoint(
     return false;
   }
 
-  if (item.kind === 'text' || item.kind === 'bitmap' || mode === 'select') {
+  if (item.kind === 'text' || mode === 'select') {
     return true;
   }
 
@@ -210,13 +209,6 @@ function translateItem(item: CanvasItem, requestedX: number, requestedY: number)
     };
   }
 
-  if (item.kind === 'bitmap') {
-    return {
-      ...item,
-      position: translatePoint(item.position, deltaX, deltaY),
-    };
-  }
-
   return {
     ...item,
     position: translatePoint(item.position, deltaX, deltaY),
@@ -225,21 +217,6 @@ function translateItem(item: CanvasItem, requestedX: number, requestedY: number)
 
 function CanvasItemShape({ item }: { item: CanvasItem }) {
   const itemAttributes = { 'data-item-id': item.id };
-
-  if (item.kind === 'bitmap') {
-    return (
-      <image
-        {...itemAttributes}
-        height={item.height * CANVAS_HEIGHT}
-        href={item.dataUrl}
-        preserveAspectRatio="none"
-        style={{ imageRendering: 'pixelated' }}
-        width={item.width * CANVAS_WIDTH}
-        x={item.position.x * CANVAS_WIDTH}
-        y={item.position.y * CANVAS_HEIGHT}
-      />
-    );
-  }
 
   if (item.kind === 'pen') {
     if (item.points.length === 1) {
@@ -345,8 +322,6 @@ export default function DrawingWorkspace({
   const [draftItem, setDraftItem] = useState<DrawableItem | null>(null);
   const [selectedIdByPage, setSelectedIdByPage] = useState<Record<string, string | null>>({});
   const [textValue, setTextValue] = useState('Text');
-  const [imageImportStatus, setImageImportStatus] = useState<'idle' | 'processing' | 'error'>('idle');
-  const imageInputRef = useRef<HTMLInputElement>(null);
   const itemsRef = useRef<CanvasItem[]>(items);
   const gestureRef = useRef<Gesture | null>(null);
   const history = historyByPage[pageId] ?? [];
@@ -640,76 +615,6 @@ export default function DrawingWorkspace({
     setSelectedId(null);
   }
 
-  async function importImage(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    setImageImportStatus('processing');
-    let bitmap: ImageBitmap | null = null;
-
-    try {
-      bitmap = await createImageBitmap(file);
-      const sampleScale = Math.min(1, 160 / Math.max(bitmap.width, bitmap.height));
-      const pixelWidth = Math.max(1, Math.round(bitmap.width * sampleScale));
-      const pixelHeight = Math.max(1, Math.round(bitmap.height * sampleScale));
-      const raster = document.createElement('canvas');
-      raster.width = pixelWidth;
-      raster.height = pixelHeight;
-      const context = raster.getContext('2d', { willReadFrequently: true });
-      if (!context) throw new Error('Canvas processing is unavailable.');
-      context.drawImage(bitmap, 0, 0, pixelWidth, pixelHeight);
-      const imageData = context.getImageData(0, 0, pixelWidth, pixelHeight);
-
-      for (let index = 0; index < imageData.data.length; index += 4) {
-        const alpha = imageData.data[index + 3];
-        const luminance =
-          imageData.data[index] * 0.2126 +
-          imageData.data[index + 1] * 0.7152 +
-          imageData.data[index + 2] * 0.0722;
-        const value = alpha < 128 || luminance >= 128 ? 255 : 0;
-        imageData.data[index] = value;
-        imageData.data[index + 1] = value;
-        imageData.data[index + 2] = value;
-        imageData.data[index + 3] = 255;
-      }
-
-      context.putImageData(imageData, 0, 0);
-      const imageAspect = pixelHeight / pixelWidth;
-      let width = 0.62;
-      let height = width * imageAspect / CANVAS_PAGE_RATIO;
-      if (height > 0.24) {
-        height = 0.24;
-        width = height * CANVAS_PAGE_RATIO / imageAspect;
-      }
-      const lowestItem = itemsRef.current.reduce(
-        (lowest, item) => Math.max(lowest, getCanvasItemBounds(item).y + getCanvasItemBounds(item).height),
-        0.025,
-      );
-      const importedItem: CanvasItem = {
-        id: createItemId('bitmap'),
-        kind: 'bitmap',
-        position: {
-          x: clamp((1 - width) / 2, 0, 1 - width),
-          y: clamp(lowestItem + 0.025, 0, 1 - height),
-          timestamp: Date.now(),
-        },
-        width,
-        height,
-        pixelWidth,
-        pixelHeight,
-        dataUrl: raster.toDataURL('image/png'),
-      };
-      commitItems([...itemsRef.current, importedItem]);
-      setSelectedId(importedItem.id);
-      setActiveTool('select');
-      setImageImportStatus('idle');
-    } catch {
-      setImageImportStatus('error');
-    } finally {
-      bitmap?.close();
-      event.target.value = '';
-    }
-  }
-
   const selectedItem = items.find((item) => item.id === selectedId);
   const visibleItems = draftItem ? [...items, draftItem] : items;
 
@@ -756,25 +661,6 @@ export default function DrawingWorkspace({
         )}
 
         <span className="toolbar-spacer" />
-        <input
-          accept="image/*"
-          hidden
-          onChange={(event) => void importImage(event)}
-          ref={imageInputRef}
-          type="file"
-        />
-        <button
-          className="icon-button"
-          disabled={imageImportStatus === 'processing'}
-          onClick={() => imageInputRef.current?.click()}
-          type="button"
-        >
-          {imageImportStatus === 'processing'
-            ? 'Processing…'
-            : imageImportStatus === 'error'
-              ? 'Try image again'
-              : 'Import image'}
-        </button>
         <button
           className="icon-button"
           disabled={history.length === 0}
