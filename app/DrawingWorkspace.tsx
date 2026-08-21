@@ -5,45 +5,18 @@ import {
   useState,
   type PointerEvent as ReactPointerEvent,
 } from 'react';
+import {
+  clamp,
+  getCanvasItemBounds,
+  type CanvasItem,
+  type DrawableItem,
+  type Point,
+  type RecognizedPrimitive,
+  type TextItem,
+} from './sketch/model';
+import { confidenceLabel, primitiveLabel } from './sketch/recognition';
 
 type Tool = 'select' | 'pen' | 'erase' | 'line' | 'frame' | 'text';
-
-type Point = {
-  x: number;
-  y: number;
-  pressure?: number;
-  timestamp: number;
-};
-
-type PenItem = {
-  id: string;
-  kind: 'pen';
-  points: Point[];
-};
-
-type LineItem = {
-  id: string;
-  kind: 'line';
-  start: Point;
-  end: Point;
-};
-
-type FrameItem = {
-  id: string;
-  kind: 'frame';
-  start: Point;
-  end: Point;
-};
-
-type TextItem = {
-  id: string;
-  kind: 'text';
-  position: Point;
-  content: string;
-};
-
-type CanvasItem = PenItem | LineItem | FrameItem | TextItem;
-type DrawableItem = PenItem | LineItem | FrameItem;
 
 type DrawGesture = {
   kind: 'draw';
@@ -69,7 +42,7 @@ type EraseGesture = {
 
 type Gesture = DrawGesture | MoveGesture | EraseGesture;
 
-type Bounds = {
+type SelectionBounds = {
   left: number;
   top: number;
   right: number;
@@ -90,10 +63,6 @@ let itemSequence = 0;
 function createItemId(kind: CanvasItem['kind']) {
   itemSequence += 1;
   return `${kind}-${Date.now()}-${itemSequence}`;
-}
-
-function clamp(value: number, minimum = 0, maximum = 1) {
-  return Math.min(maximum, Math.max(minimum, value));
 }
 
 function getPoint(event: ReactPointerEvent<SVGSVGElement>): Point {
@@ -139,26 +108,13 @@ function distanceToSegment(point: Point, start: Point, end: Point) {
   return Math.hypot(point.x - projectedX, point.y - projectedY);
 }
 
-function getItemBounds(item: CanvasItem): Bounds {
-  if (item.kind === 'text') {
-    const width = Math.max(0.055, item.content.length * 0.016);
-    return {
-      left: item.position.x,
-      top: item.position.y - 0.045,
-      right: item.position.x + width,
-      bottom: item.position.y + 0.012,
-    };
-  }
-
-  const points = item.kind === 'pen' ? item.points : [item.start, item.end];
-  const xs = points.map((point) => point.x);
-  const ys = points.map((point) => point.y);
-
+function getItemBounds(item: CanvasItem): SelectionBounds {
+  const bounds = getCanvasItemBounds(item);
   return {
-    left: Math.min(...xs),
-    top: Math.min(...ys),
-    right: Math.max(...xs),
-    bottom: Math.max(...ys),
+    left: bounds.x,
+    top: bounds.y,
+    right: bounds.x + bounds.width,
+    bottom: bounds.y + bounds.height,
   };
 }
 
@@ -339,7 +295,15 @@ function SelectionOutline({ item }: { item: CanvasItem }) {
   );
 }
 
-export default function DrawingWorkspace() {
+type DrawingWorkspaceProps = {
+  onItemsChange: (items: CanvasItem[]) => void;
+  recognizedPrimitives: RecognizedPrimitive[];
+};
+
+export default function DrawingWorkspace({
+  onItemsChange,
+  recognizedPrimitives,
+}: DrawingWorkspaceProps) {
   const [activeTool, setActiveTool] = useState<Tool>('pen');
   const [items, setItems] = useState<CanvasItem[]>([]);
   const [history, setHistory] = useState<CanvasItem[][]>([]);
@@ -353,6 +317,7 @@ export default function DrawingWorkspace() {
   function updateItems(nextItems: CanvasItem[]) {
     itemsRef.current = nextItems;
     setItems(nextItems);
+    onItemsChange(nextItems);
   }
 
   function commitItems(nextItems: CanvasItem[]) {
@@ -708,6 +673,28 @@ export default function DrawingWorkspace() {
           {activeTool === 'select' && selectedItem && (
             <SelectionOutline item={selectedItem} />
           )}
+          <g className="recognition-layer" aria-hidden="true">
+            {recognizedPrimitives.map((primitive) => (
+              <g
+                className={`recognition-box ${confidenceLabel(primitive.confidence)}`}
+                key={primitive.id}
+              >
+                <rect
+                  height={Math.max(24, primitive.bounds.height * 1000)}
+                  width={Math.max(38, primitive.bounds.width * 1000)}
+                  x={primitive.bounds.x * 1000}
+                  y={primitive.bounds.y * 1000}
+                />
+                <text
+                  x={primitive.bounds.x * 1000 + 7}
+                  y={Math.max(14, primitive.bounds.y * 1000 - 7)}
+                >
+                  {primitiveLabel(primitive.type)}{' '}
+                  {Math.round(primitive.confidence * 100)}%
+                </text>
+              </g>
+            ))}
+          </g>
         </svg>
 
         <span className="zoom-label">100%</span>
