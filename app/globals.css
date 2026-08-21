@@ -11,10 +11,11 @@
 }
 
 * { box-sizing: border-box; }
-html, body { min-height: 100%; }
+html, body { height: 100%; min-height: 100%; }
 
 body {
   margin: 0;
+  overflow: hidden;
   background: var(--canvas);
   color: var(--ink);
   font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
@@ -26,7 +27,9 @@ button:disabled { color: inherit; cursor: default; opacity: 1; }
 .app-shell {
   display: grid;
   grid-template-rows: 64px minmax(0, 1fr) 86px;
-  min-height: 100vh;
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
   padding: 12px;
 }
 
@@ -129,11 +132,13 @@ button:disabled { color: inherit; cursor: default; opacity: 1; }
 .panel {
   display: grid;
   min-width: 0;
-  grid-template-rows: 70px 1fr 38px;
+  min-height: 0;
+  grid-template-rows: 70px minmax(0, 1fr) 38px;
+  overflow: hidden;
 }
 
 .sketch-panel {
-  grid-template-rows: 70px 52px 1fr 38px;
+  grid-template-rows: 70px 52px minmax(0, 1fr) 38px;
   border-right: 1px solid var(--line);
 }
 
@@ -249,7 +254,7 @@ button:disabled { color: inherit; cursor: default; opacity: 1; }
 .canvas-wrap {
   position: relative;
   display: grid;
-  min-height: 380px;
+  min-height: 0;
   place-items: center;
   overflow: hidden;
   background-color: #fafbf9;
@@ -406,7 +411,7 @@ button:disabled { color: inherit; cursor: default; opacity: 1; }
 
 .preview-stage {
   display: grid;
-  min-height: 380px;
+  min-height: 0;
   place-items: center;
   overflow: hidden;
   padding: 28px;
@@ -416,8 +421,8 @@ button:disabled { color: inherit; cursor: default; opacity: 1; }
 .browser-frame {
   display: grid;
   width: min(100%, 720px);
-  height: min(100%, 560px);
-  min-height: 360px;
+  height: 100%;
+  min-height: 0;
   grid-template-rows: 34px 1fr;
   overflow: hidden;
   border: 1px solid #d3d9d4;
@@ -467,8 +472,8 @@ button:disabled { color: inherit; cursor: default; opacity: 1; }
 .output-document {
   display: grid;
   width: min(100%, 760px);
-  height: min(100%, 560px);
-  min-height: 360px;
+  height: 100%;
+  min-height: 0;
   grid-template-rows: 44px minmax(0, 1fr);
   overflow: hidden;
   border: 1px solid #d3d9d4;
@@ -492,6 +497,7 @@ button:disabled { color: inherit; cursor: default; opacity: 1; }
 
 .output-document pre {
   min-width: 0;
+  min-height: 0;
   margin: 0;
   overflow: auto;
   padding: 16px;
@@ -574,9 +580,17 @@ button:disabled { color: inherit; cursor: default; opacity: 1; }
 }
 
 @media (max-width: 900px) {
-  .app-shell { display: block; padding: 8px; }
+  body { overflow: auto; }
+  .app-shell {
+    display: block;
+    height: auto;
+    min-height: 100dvh;
+    overflow: visible;
+    padding: 8px;
+  }
   .topbar { min-height: 58px; }
   .workspace { grid-template-columns: 1fr; overflow: visible; }
+  .panel { height: 620px; min-height: 620px; }
   .sketch-panel { border-right: 0; border-bottom: 1px solid var(--line); }
   .inspector { min-height: 86px; }
 }
@@ -588,6 +602,7 @@ button:disabled { color: inherit; cursor: default; opacity: 1; }
   .workspace { border-radius: 10px; }
   .panel-heading { padding: 0 14px; }
   .preview-stage { padding: 14px; }
+  .panel { height: 560px; min-height: 560px; }
   .inspector { grid-template-columns: 1fr auto; gap: 12px; }
   .inspector > p { display: none; }
   .panel-meta { display: none; }
