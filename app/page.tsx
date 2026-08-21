@@ -1,4 +1,4 @@
-const tools = ['Select', 'Pen', 'Erase', 'Frame', 'Text'];
+import DrawingWorkspace from './DrawingWorkspace';
 
 const previewSizes = ['Desktop', 'Tablet', 'Mobile'];
 
@@ -31,51 +31,7 @@ export default function Home() {
       </header>
 
       <section className="workspace" aria-label="SketchSite workspace">
-        <section className="panel sketch-panel" aria-labelledby="sketch-heading">
-          <div className="panel-heading">
-            <div>
-              <p className="eyebrow">Input</p>
-              <h1 id="sketch-heading">Sketch wireframe</h1>
-            </div>
-            <span className="panel-meta">Untitled</span>
-          </div>
-
-          <div className="drawing-toolbar" aria-label="Drawing tools">
-            {tools.map((tool, index) => (
-              <button
-                className={index === 1 ? 'tool active' : 'tool'}
-                disabled
-                key={tool}
-                type="button"
-              >
-                <span aria-hidden="true">{tool.slice(0, 1)}</span>
-                {tool}
-              </button>
-            ))}
-            <span className="toolbar-spacer" />
-            <button className="icon-button" disabled type="button">Undo</button>
-            <button className="icon-button" disabled type="button">Redo</button>
-          </div>
-
-          <div className="canvas-wrap">
-            <div className="canvas-empty">
-              <div className="empty-icon" aria-hidden="true">
-                <span />
-                <span />
-                <span />
-              </div>
-              <h2>Your canvas is ready</h2>
-              <p>Draw a navbar, hero, cards, buttons, or a form.</p>
-              <button disabled type="button">Load example</button>
-            </div>
-            <span className="zoom-label">100%</span>
-          </div>
-
-          <footer className="panel-footer">
-            <span>0 strokes</span>
-            <span>Auto-recognize · 500 ms</span>
-          </footer>
-        </section>
+        <DrawingWorkspace />
 
         <section className="panel preview-panel" aria-labelledby="preview-heading">
           <div className="panel-heading">

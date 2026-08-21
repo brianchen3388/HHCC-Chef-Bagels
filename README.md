@@ -4,7 +4,7 @@ Our project code for HHCC 2026.
 
 SketchSite is an early interface foundation for a browser-based wireframe-to-website generator.
 
-This first version contains only the responsive editor shell: a drawing area, a website preview, preview controls, and an element inspector. Every control is intentionally disabled. Drawing, recognition, website generation, persistence, editing, and export are not implemented yet.
+This early version contains a responsive editor shell with a working freehand drawing canvas, stroke undo/redo, and clear controls. Recognition, website generation, persistence, editing, and export are not implemented yet.
 
 ## Run locally
 

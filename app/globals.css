@@ -186,8 +186,11 @@ button:disabled { color: inherit; cursor: default; opacity: 1; }
 
 .tool.active { border-color: #c9e0d1; background: var(--accent-soft); color: var(--accent); }
 .tool.active span { border-color: transparent; background: var(--accent); color: white; }
+.tool:disabled:not(.active),
+.icon-button:disabled { opacity: 0.42; }
 .toolbar-spacer { flex: 1; min-width: 6px; }
 .icon-button { border-color: var(--line); }
+.icon-button:not(:disabled):hover { border-color: #aebbb1; background: #f5f7f4; }
 
 .canvas-wrap {
   position: relative;
@@ -200,11 +203,41 @@ button:disabled { color: inherit; cursor: default; opacity: 1; }
   background-size: 18px 18px;
 }
 
+.drawing-surface {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  cursor: crosshair;
+  touch-action: none;
+  user-select: none;
+}
+
+.stroke-layer {
+  fill: var(--ink);
+  stroke: var(--ink);
+  stroke-width: 3.25;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.stroke-layer polyline {
+  fill: none;
+  vector-effect: non-scaling-stroke;
+}
+
 .canvas-empty,
 .preview-empty {
   max-width: 350px;
   padding: 24px;
   text-align: center;
+}
+
+.canvas-empty {
+  z-index: 1;
+  pointer-events: none;
 }
 
 .canvas-empty h2,
@@ -267,6 +300,8 @@ button:disabled { color: inherit; cursor: default; opacity: 1; }
   padding: 5px 7px;
   color: var(--muted);
   font-size: 10px;
+  pointer-events: none;
+  z-index: 3;
 }
 
 .view-tabs {
