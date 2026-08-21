@@ -74,6 +74,7 @@ export type GeneratedPage = {
   style: {
     name: string;
     rationale: string;
+    characteristics: string[];
     palette: string[];
     typography: string;
   };
@@ -175,6 +176,12 @@ export const generatedPageJsonSchema = {
       properties: {
         name: { type: 'string', minLength: 1, maxLength: 80 },
         rationale: { type: 'string', minLength: 1, maxLength: 500 },
+        characteristics: {
+          type: 'array',
+          minItems: 3,
+          maxItems: 6,
+          items: { type: 'string', minLength: 1, maxLength: 80 },
+        },
         palette: {
           type: 'array',
           minItems: 2,
@@ -183,7 +190,13 @@ export const generatedPageJsonSchema = {
         },
         typography: { type: 'string', minLength: 1, maxLength: 160 },
       },
-      required: ['name', 'rationale', 'palette', 'typography'],
+      required: [
+        'name',
+        'rationale',
+        'characteristics',
+        'palette',
+        'typography',
+      ],
     },
     html: { type: 'string', minLength: 1, maxLength: 100000 },
     css: { type: 'string', minLength: 1, maxLength: 100000 },
@@ -448,8 +461,18 @@ export function validateGeneratedPage(value: unknown): GeneratedPage {
   const styleValue = asRecord(page.style, 'Generated style');
   requireExactKeys(
     styleValue,
-    ['name', 'rationale', 'palette', 'typography'],
+    ['name', 'rationale', 'characteristics', 'palette', 'typography'],
     'Generated style',
+  );
+  if (
+    !Array.isArray(styleValue.characteristics) ||
+    styleValue.characteristics.length < 3 ||
+    styleValue.characteristics.length > 6
+  ) {
+    throw new Error('Generated style characteristics are invalid.');
+  }
+  const characteristics = styleValue.characteristics.map((item, index) =>
+    asString(item, `Style characteristic ${index + 1}`, 80),
   );
   if (
     !Array.isArray(styleValue.palette) ||
@@ -491,6 +514,7 @@ export function validateGeneratedPage(value: unknown): GeneratedPage {
     style: {
       name: asString(styleValue.name, 'Style name', 80),
       rationale: asString(styleValue.rationale, 'Style rationale', 500),
+      characteristics,
       palette,
       typography: asString(styleValue.typography, 'Typography', 160),
     },

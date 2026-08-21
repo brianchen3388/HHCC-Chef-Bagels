@@ -359,8 +359,10 @@ export default function Home() {
 
       <aside className="inspector" aria-label="Generation status">
         <div>
-          <p className="eyebrow">Pipeline</p>
-          <h2>{stageLabels[stage]}</h2>
+          <p className="eyebrow">
+            {generatedPage ? 'Selected style' : 'Pipeline'}
+          </p>
+          <h2>{generatedPage?.style.name ?? stageLabels[stage]}</h2>
         </div>
         <p
           className={errorMessage ? 'error-message' : undefined}
@@ -370,11 +372,23 @@ export default function Home() {
             generatedPage?.style.rationale ??
             'Kimi Vision reads the sketch into JSON, then Kimi Code chooses a style and writes static HTML/CSS.'}
         </p>
-        <div className="pipeline-steps" aria-label="Generation pipeline">
-          <span className={scene ? 'complete' : ''}>1 · JSON</span>
-          <span aria-hidden="true">→</span>
-          <span className={generatedPage ? 'complete' : ''}>2 · HTML/CSS</span>
-        </div>
+        {generatedPage ? (
+          <div
+            className="style-characteristics"
+            aria-label="Generated style characteristics"
+          >
+            {generatedPage.style.characteristics.slice(0, 4).map((item) => (
+              <span key={item}>{item}</span>
+            ))}
+            <small>{generatedPage.style.palette.join(' · ')}</small>
+          </div>
+        ) : (
+          <div className="pipeline-steps" aria-label="Generation pipeline">
+            <span className={scene ? 'complete' : ''}>1 · JSON</span>
+            <span aria-hidden="true">→</span>
+            <span className={generatedPage ? 'complete' : ''}>2 · HTML/CSS</span>
+          </div>
+        )}
       </aside>
     </main>
   );

@@ -548,6 +548,31 @@ button:disabled { color: inherit; cursor: default; opacity: 1; }
 
 .pipeline-steps .complete { color: var(--accent); }
 
+.style-characteristics {
+  display: flex;
+  max-width: 410px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 5px;
+}
+
+.style-characteristics span {
+  border: 1px solid #cfe0d4;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  padding: 4px 7px;
+  color: var(--accent);
+  font-size: 9px;
+  font-weight: 650;
+}
+
+.style-characteristics small {
+  width: 100%;
+  color: #89958d;
+  font-size: 8px;
+  text-align: right;
+}
+
 @media (max-width: 900px) {
   .app-shell { display: block; padding: 8px; }
   .topbar { min-height: 58px; }
