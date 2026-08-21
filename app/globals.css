@@ -119,6 +119,7 @@ button:disabled { color: inherit; cursor: default; opacity: 1; }
 .panel {
   display: grid;
   min-width: 0;
+  min-height: 0;
   grid-template-rows: 70px 1fr 38px;
 }
 
@@ -218,12 +219,14 @@ button:disabled { color: inherit; cursor: default; opacity: 1; }
 
 .canvas-shell {
   position: relative;
-  min-height: 380px;
+  min-height: 0;
+  height: 100%;
   overflow: hidden;
 }
 
 .canvas-wrap {
-  height: 100%;
+  position: absolute;
+  inset: 0;
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -716,7 +719,7 @@ button:disabled { color: inherit; cursor: default; opacity: 1; }
   .app-shell { display: block; padding: 8px; }
   .topbar { min-height: 58px; }
   .workspace { grid-template-columns: 1fr; overflow: visible; }
-  .sketch-panel { border-right: 0; border-bottom: 1px solid var(--line); }
+  .sketch-panel { height: min(720px, calc(100vh - 74px)); min-height: 520px; border-right: 0; border-bottom: 1px solid var(--line); }
   .inspector { min-height: 86px; }
 }
 
