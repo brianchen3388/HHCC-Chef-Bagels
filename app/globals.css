@@ -110,7 +110,7 @@ button:disabled { color: inherit; cursor: default; opacity: 1; }
 .workspace {
   display: grid;
   min-height: 0;
-  grid-template-columns: minmax(360px, 0.92fr) minmax(440px, 1.08fr);
+  grid-template-columns: minmax(290px, 0.92fr) minmax(340px, 1.08fr);
   overflow: hidden;
   border: 1px solid var(--line);
   border-radius: 14px;
@@ -686,6 +686,10 @@ button:disabled { color: inherit; cursor: default; opacity: 1; }
 .generated-nav-content { display: flex; align-items: center; gap: 12px; }
 .generated-nav .generated-button,
 .generated-button { display: inline-flex; min-width: 0; align-items: center; justify-content: center; border: 0; border-radius: 8px; background: #246b47; padding: 9px 13px; color: white; font-size: 9px; overflow-wrap: anywhere; text-align: center; white-space: normal; }
+.generated-button-shell { display: inline-grid; width: fit-content; max-width: 100%; grid-template-columns: minmax(0, 1fr) auto; align-items: stretch; overflow: hidden; border-radius: 8px; outline: 1px dashed transparent; outline-offset: 3px; }
+.generated-button-shell .generated-button { width: 100%; border-radius: 8px 0 0 8px; }
+.generated-button-edit { border: 0; border-left: 1px solid rgb(255 255 255 / 25%); border-radius: 0 8px 8px 0; background: #1b5538; padding: 0 7px; color: white; font-size: 7px; cursor: pointer; }
+.generated-button-shell.selected { outline: 2px solid #246b47; }
 .generated-card { min-height: 130px; border-radius: 13px; background: white; padding: 18px; }
 .generated-card h1 { margin: 0 0 10px; font-size: 15px; }
 .generated-card h2 { margin: 0 0 8px; font-size: 14px; }
@@ -701,9 +705,8 @@ button:disabled { color: inherit; cursor: default; opacity: 1; }
 .generated-spatial-row { display: flex; width: 100%; flex-flow: row nowrap; align-items: center; gap: 18px; }
 .generated-spatial-row.single { display: block; }
 .generated-spatial-row:not(.single) > * { min-width: 0; max-width: 100%; flex: 1 1 0; }
-.generated-spatial-row:not(.single) > .generated-button { width: 100%; }
+.generated-spatial-row:not(.single) > .generated-button-shell { width: 100%; }
 .generated-editable { cursor: text; outline: 1px dashed transparent; outline-offset: 3px; }
-.generated-button.generated-editable { cursor: pointer; }
 .generated-editable:hover { outline-color: #9ab7a3; }
 .generated-editable.selected { outline: 2px solid #246b47; background-clip: padding-box; }
 .generated-divider.horizontal { width: 86%; height: 1px; min-height: 1px; border: 0; background: #dce3dd; }
@@ -804,7 +807,7 @@ button:disabled { color: inherit; cursor: default; opacity: 1; }
 .inspector button { margin: 0; background: var(--ink); color: white; }
 .inspector button:disabled { opacity: 0.4; }
 
-@media (max-width: 900px) {
+@media (max-width: 700px) {
   html, body { height: auto; overflow: auto; }
   .app-shell { display: block; height: auto; min-height: 100vh; overflow: visible; padding: 8px; }
   .topbar { min-height: 58px; }

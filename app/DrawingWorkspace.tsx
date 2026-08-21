@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  useEffect,
   useRef,
   useState,
   type PointerEvent as ReactPointerEvent,
@@ -299,7 +300,7 @@ function SelectionOutline({ item }: { item: CanvasItem }) {
 }
 
 type DrawingWorkspaceProps = {
-  initialItems?: CanvasItem[];
+  items: CanvasItem[];
   onItemsChange: (items: CanvasItem[]) => void;
   onPageChange: (pageId: string) => void;
   pageId: string;
@@ -308,7 +309,7 @@ type DrawingWorkspaceProps = {
 };
 
 export default function DrawingWorkspace({
-  initialItems = [],
+  items,
   onItemsChange,
   onPageChange,
   pageId,
@@ -316,18 +317,45 @@ export default function DrawingWorkspace({
   recognizedPrimitives,
 }: DrawingWorkspaceProps) {
   const [activeTool, setActiveTool] = useState<Tool>('pen');
-  const [items, setItems] = useState<CanvasItem[]>(initialItems);
-  const [history, setHistory] = useState<CanvasItem[][]>([]);
-  const [future, setFuture] = useState<CanvasItem[][]>([]);
+  const [historyByPage, setHistoryByPage] = useState<Record<string, CanvasItem[][]>>({});
+  const [futureByPage, setFutureByPage] = useState<Record<string, CanvasItem[][]>>({});
   const [draftItem, setDraftItem] = useState<DrawableItem | null>(null);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedIdByPage, setSelectedIdByPage] = useState<Record<string, string | null>>({});
   const [textValue, setTextValue] = useState('Text');
-  const itemsRef = useRef<CanvasItem[]>(initialItems);
+  const itemsRef = useRef<CanvasItem[]>(items);
   const gestureRef = useRef<Gesture | null>(null);
+  const history = historyByPage[pageId] ?? [];
+  const future = futureByPage[pageId] ?? [];
+  const selectedId = selectedIdByPage[pageId] ?? null;
+
+  useEffect(() => {
+    itemsRef.current = items;
+  }, [items]);
+
+  useEffect(() => {
+    gestureRef.current = null;
+  }, [pageId]);
+
+  function setHistory(next: CanvasItem[][] | ((current: CanvasItem[][]) => CanvasItem[][])) {
+    setHistoryByPage((current) => ({
+      ...current,
+      [pageId]: typeof next === 'function' ? next(current[pageId] ?? []) : next,
+    }));
+  }
+
+  function setFuture(next: CanvasItem[][] | ((current: CanvasItem[][]) => CanvasItem[][])) {
+    setFutureByPage((current) => ({
+      ...current,
+      [pageId]: typeof next === 'function' ? next(current[pageId] ?? []) : next,
+    }));
+  }
+
+  function setSelectedId(next: string | null) {
+    setSelectedIdByPage((current) => ({ ...current, [pageId]: next }));
+  }
 
   function updateItems(nextItems: CanvasItem[]) {
     itemsRef.current = nextItems;
-    setItems(nextItems);
     onItemsChange(nextItems);
   }
 

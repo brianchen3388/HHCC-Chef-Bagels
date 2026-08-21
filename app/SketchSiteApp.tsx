@@ -96,11 +96,13 @@ const containerTypes = new Set<WebsiteNode['type']>([
 function GeneratedRows({
   node,
   insideForm,
+  onNavigate,
   onSelect,
   selectedId,
 }: {
   node: WebsiteNode;
   insideForm: boolean;
+  onNavigate: (pageId: string) => void;
   onSelect: (node: WebsiteNode) => void;
   selectedId: string | null;
 }) {
@@ -122,6 +124,7 @@ function GeneratedRows({
                 insideForm={insideForm}
                 key={child.id}
                 node={child}
+                onNavigate={onNavigate}
                 onSelect={onSelect}
                 selectedId={selectedId}
               />
@@ -136,11 +139,13 @@ function GeneratedRows({
 function GeneratedNode({
   node,
   insideForm = false,
+  onNavigate,
   onSelect,
   selectedId,
 }: {
   node: WebsiteNode;
   insideForm?: boolean;
+  onNavigate: (pageId: string) => void;
   onSelect: (node: WebsiteNode) => void;
   selectedId: string | null;
 }) {
@@ -150,6 +155,7 @@ function GeneratedNode({
       insideForm={childIsInsideForm}
       key={child.id}
       node={child}
+      onNavigate={onNavigate}
       onSelect={onSelect}
       selectedId={selectedId}
     />
@@ -158,6 +164,7 @@ function GeneratedNode({
     <GeneratedRows
       insideForm={childIsInsideForm}
       node={node}
+      onNavigate={onNavigate}
       onSelect={onSelect}
       selectedId={selectedId}
     />
@@ -199,15 +206,27 @@ function GeneratedNode({
     return <div aria-label="Generated visual placeholder" className="generated-image" role="img"><span>Image</span></div>;
   }
   if (node.type === 'button') {
+    const label = node.content || nestedLabel || 'Get started';
     return (
-      <button
-        className={`generated-button ${editableClass}`}
-        onClick={() => onSelect(node)}
-        style={node.fontSize ? { fontSize: `${node.fontSize}px` } : undefined}
-        type="button"
-      >
-        {node.content || nestedLabel || 'Get started'}
-      </button>
+      <span className={selectedId === node.id ? 'generated-button-shell selected' : 'generated-button-shell'}>
+        <button
+          className="generated-button"
+          onClick={() => node.linkPageId ? onNavigate(node.linkPageId) : onSelect(node)}
+          style={node.fontSize ? { fontSize: `${node.fontSize}px` } : undefined}
+          type="button"
+        >
+          {label}
+        </button>
+        <button
+          aria-label={`Edit ${label}`}
+          className="generated-button-edit"
+          onClick={() => onSelect(node)}
+          title="Edit button"
+          type="button"
+        >
+          Edit
+        </button>
+      </span>
     );
   }
   if (node.type === 'input') {
@@ -228,10 +247,12 @@ function GeneratedNode({
 
 function GeneratedPreview({
   onSelect,
+  onNavigate,
   selectedId,
   site,
 }: {
   onSelect: (node: WebsiteNode) => void;
+  onNavigate: (pageId: string) => void;
   selectedId: string | null;
   site: GeneratedWebsite;
 }) {
@@ -256,6 +277,7 @@ function GeneratedPreview({
         <GeneratedRows
           insideForm={false}
           node={site.tree}
+          onNavigate={onNavigate}
           onSelect={onSelect}
           selectedId={selectedId}
         />
@@ -515,6 +537,7 @@ function OutputPanel({
                 <div>your-site.local/{activePage?.slug ?? ''}</div>
               </div>
               <GeneratedPreview
+                onNavigate={onPageChange}
                 onSelect={(node) => setSelectedPreviewSourceId(node.sourcePrimitiveIds[0] ?? null)}
                 selectedId={selectedPreviewNode?.id ?? null}
                 site={site}
@@ -853,8 +876,7 @@ export default function SketchSiteApp() {
 
       <section className="workspace" aria-label="SketchSite workspace">
         <DrawingWorkspace
-          initialItems={activePage.canvasItems}
-          key={activePageId}
+          items={activePage.canvasItems}
           onItemsChange={handleCanvasItemsChange}
           onPageChange={handlePageChange}
           pageId={activePageId}
@@ -866,7 +888,6 @@ export default function SketchSiteApp() {
           codeView={codeView}
           copiedLabel={copiedLabel}
           cssCode={cssCode}
-          key={activePageId}
           onCopy={copyCode}
           onCreateLinkedPage={handleCreateLinkedPage}
           onElementEdit={handleElementEdit}
