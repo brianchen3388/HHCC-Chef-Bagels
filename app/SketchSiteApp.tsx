@@ -208,25 +208,23 @@ function GeneratedNode({
   if (node.type === 'button') {
     const label = node.content || nestedLabel || 'Get started';
     return (
-      <span className={selectedId === node.id ? 'generated-button-shell selected' : 'generated-button-shell'}>
-        <button
-          className="generated-button"
-          onClick={() => node.linkPageId ? onNavigate(node.linkPageId) : onSelect(node)}
-          style={node.fontSize ? { fontSize: `${node.fontSize}px` } : undefined}
-          type="button"
-        >
-          {label}
-        </button>
-        <button
-          aria-label={`Edit ${label}`}
-          className="generated-button-edit"
-          onClick={() => onSelect(node)}
-          title="Edit button"
-          type="button"
-        >
-          Edit
-        </button>
-      </span>
+      <button
+        className={selectedId === node.id
+          ? 'generated-button generated-editable selected'
+          : 'generated-button generated-editable'}
+        onClick={() => {
+          if (node.linkPageId && selectedId === node.id) {
+            onNavigate(node.linkPageId);
+          } else {
+            onSelect(node);
+          }
+        }}
+        style={node.fontSize ? { fontSize: `${node.fontSize}px` } : undefined}
+        title={node.linkPageId && selectedId === node.id ? 'Open linked page' : 'Edit button'}
+        type="button"
+      >
+        {label}
+      </button>
     );
   }
   if (node.type === 'input') {
