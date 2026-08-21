@@ -45,6 +45,12 @@ type TextItem = {
 type CanvasItem = PenItem | LineItem | FrameItem | TextItem;
 type DrawableItem = PenItem | LineItem | FrameItem;
 
+type DrawingWorkspaceProps = {
+  isGenerating: boolean;
+  onExportError: (message: string) => void;
+  onGenerate: (imageDataUrl: string) => Promise<void>;
+};
+
 type DrawGesture = {
   kind: 'draw';
   pointerId: number;
@@ -339,7 +345,73 @@ function SelectionOutline({ item }: { item: CanvasItem }) {
   );
 }
 
-export default function DrawingWorkspace() {
+function exportSvgAsPng(svg: SVGSVGElement) {
+  const exportSvg = svg.cloneNode(true) as SVGSVGElement;
+  exportSvg.querySelectorAll('.selection-outline').forEach((node) => node.remove());
+  exportSvg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+  exportSvg.setAttribute('width', '1000');
+  exportSvg.setAttribute('height', '1000');
+
+  exportSvg
+    .querySelectorAll<SVGElement>('.canvas-pen, .canvas-line, .canvas-frame')
+    .forEach((node) => {
+      node.setAttribute('fill', 'none');
+      node.setAttribute('stroke', '#17211b');
+      node.setAttribute('stroke-width', '4');
+      node.setAttribute('stroke-linecap', 'round');
+      node.setAttribute('stroke-linejoin', 'round');
+    });
+  exportSvg.querySelectorAll<SVGElement>('.canvas-dot').forEach((node) => {
+    node.setAttribute('fill', '#17211b');
+    node.setAttribute('stroke', 'none');
+  });
+  exportSvg.querySelectorAll<SVGElement>('.canvas-text').forEach((node) => {
+    node.setAttribute('fill', '#17211b');
+    node.setAttribute('font-family', 'Arial, Helvetica, sans-serif');
+    node.setAttribute('font-size', '26');
+    node.setAttribute('font-weight', '650');
+  });
+
+  const blob = new Blob([new XMLSerializer().serializeToString(exportSvg)], {
+    type: 'image/svg+xml;charset=utf-8',
+  });
+  const objectUrl = URL.createObjectURL(blob);
+
+  return new Promise<string>((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = 1000;
+        canvas.height = 1000;
+        const context = canvas.getContext('2d');
+        if (!context) {
+          reject(new Error('无法创建画布快照。'));
+          return;
+        }
+        context.fillStyle = '#ffffff';
+        context.fillRect(0, 0, canvas.width, canvas.height);
+        context.drawImage(image, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL('image/png'));
+      } catch {
+        reject(new Error('无法导出画布，请重试。'));
+      } finally {
+        URL.revokeObjectURL(objectUrl);
+      }
+    };
+    image.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error('无法读取画布快照，请重试。'));
+    };
+    image.src = objectUrl;
+  });
+}
+
+export default function DrawingWorkspace({
+  isGenerating,
+  onExportError,
+  onGenerate,
+}: DrawingWorkspaceProps) {
   const [activeTool, setActiveTool] = useState<Tool>('pen');
   const [items, setItems] = useState<CanvasItem[]>([]);
   const [history, setHistory] = useState<CanvasItem[][]>([]);
@@ -347,8 +419,10 @@ export default function DrawingWorkspace() {
   const [draftItem, setDraftItem] = useState<DrawableItem | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [textValue, setTextValue] = useState('Text');
+  const [isExporting, setIsExporting] = useState(false);
   const itemsRef = useRef<CanvasItem[]>([]);
   const gestureRef = useRef<Gesture | null>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
 
   function updateItems(nextItems: CanvasItem[]) {
     itemsRef.current = nextItems;
@@ -611,6 +685,30 @@ export default function DrawingWorkspace() {
     setSelectedId(null);
   }
 
+  async function generateWebsite() {
+    if (
+      itemsRef.current.length === 0 ||
+      gestureRef.current ||
+      !svgRef.current ||
+      isExporting ||
+      isGenerating
+    ) {
+      return;
+    }
+
+    setIsExporting(true);
+    try {
+      const imageDataUrl = await exportSvgAsPng(svgRef.current);
+      await onGenerate(imageDataUrl);
+    } catch (error) {
+      onExportError(
+        error instanceof Error ? error.message : '无法生成画布快照，请重试。',
+      );
+    } finally {
+      setIsExporting(false);
+    }
+  }
+
   const selectedItem = items.find((item) => item.id === selectedId);
   const visibleItems = draftItem ? [...items, draftItem] : items;
 
@@ -621,7 +719,24 @@ export default function DrawingWorkspace() {
           <p className="eyebrow">Input</p>
           <h1 id="sketch-heading">Sketch wireframe</h1>
         </div>
-        <span className="panel-meta">Untitled</span>
+        <div className="panel-heading-actions">
+          <span className="panel-meta">Untitled</span>
+          <button
+            aria-busy={isExporting || isGenerating}
+            className="generate-button"
+            disabled={
+              items.length === 0 || isExporting || isGenerating
+            }
+            onClick={generateWebsite}
+            type="button"
+          >
+            {isExporting
+              ? 'Preparing…'
+              : isGenerating
+                ? 'Generating…'
+                : 'Generate website'}
+          </button>
+        </div>
       </div>
 
       <div className="drawing-toolbar" aria-label="Drawing tools">
@@ -697,6 +812,7 @@ export default function DrawingWorkspace() {
           onPointerMove={continueGesture}
           onPointerUp={finishGesture}
           preserveAspectRatio="none"
+          ref={svgRef}
           role="application"
           viewBox="0 0 1000 1000"
         >
