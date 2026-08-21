@@ -203,7 +203,16 @@ function GeneratedNode({
     .filter(Boolean)
     .join(' ');
   if (node.type === 'image') {
-    return <div aria-label="Generated visual placeholder" className="generated-image" role="img"><span>Image</span></div>;
+    return (
+      <div
+        aria-label={node.imageDataUrl ? 'Imported black and white image' : 'Generated visual placeholder'}
+        className={node.imageDataUrl ? 'generated-image imported' : 'generated-image'}
+        role="img"
+        style={node.imageDataUrl ? { backgroundImage: `url(${node.imageDataUrl})` } : undefined}
+      >
+        {!node.imageDataUrl && <span>Image</span>}
+      </div>
+    );
   }
   if (node.type === 'button') {
     const label = node.content || nestedLabel || 'Get started';

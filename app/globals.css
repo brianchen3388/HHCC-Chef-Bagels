@@ -588,7 +588,6 @@ button:disabled { color: inherit; cursor: default; opacity: 1; }
 .generated-nav strong { font-size: 14px; }
 .generated-nav div { display: flex; gap: 18px; }
 .generated-nav a { color: #617067; font-size: 9px; text-decoration: none; }
-.generated-nav button { display: none; border: 0; background: transparent; font-size: 9px; }
 
 .generated-hero {
   display: grid;
@@ -644,6 +643,14 @@ button:disabled { color: inherit; cursor: default; opacity: 1; }
   color: #427057;
   font-size: 9px;
   font-weight: 700;
+}
+
+.generated-image.imported {
+  background-color: white;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: contain;
+  image-rendering: pixelated;
 }
 
 .generated-features {
@@ -710,8 +717,12 @@ button:disabled { color: inherit; cursor: default; opacity: 1; }
 .generated-divider.vertical { width: 1px; min-width: 1px; min-height: 84px; align-self: stretch; border: 0; background: #dce3dd; }
 
 .preview-viewport.tablet .generated-card-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.preview-viewport.mobile .generated-nav div { display: none; }
-.preview-viewport.mobile .generated-nav button { display: block; }
+.preview-viewport.mobile .generated-nav { gap: 8px; padding: 12px 4%; }
+.preview-viewport.mobile .generated-nav strong { min-width: 0; flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.preview-viewport.mobile .generated-nav-content { display: block; min-width: 0; max-width: 72%; margin-left: auto; overflow-x: auto; scrollbar-width: thin; }
+.preview-viewport.mobile .generated-nav-content .generated-mixed-layout { width: max-content; max-width: none; flex-direction: row; gap: 6px; }
+.preview-viewport.mobile .generated-nav-content .generated-spatial-row { width: auto; flex: 0 0 auto; gap: 6px; }
+.preview-viewport.mobile .generated-nav .generated-button { display: inline-flex; width: auto; max-width: 108px; flex: 0 1 auto; padding: 7px 8px; overflow: hidden; font-size: 7px; text-overflow: ellipsis; white-space: nowrap; }
 .preview-viewport.mobile .generated-hero,
 .preview-viewport.mobile .generated-form-section { grid-template-columns: 1fr; }
 .preview-viewport.mobile .generated-hero { gap: 28px; padding: 40px 8%; }

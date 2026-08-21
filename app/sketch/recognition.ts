@@ -36,6 +36,18 @@ function pathLength(points: Point[]) {
   );
 }
 
+function directionChanges(points: Point[]) {
+  const directions = points.slice(1).map((point, index) => {
+    const delta = point.y - points[index].y;
+    return Math.abs(delta) < 0.0007 ? 0 : Math.sign(delta);
+  }).filter(Boolean);
+
+  return directions.slice(1).reduce(
+    (changes, direction, index) => changes + (direction !== directions[index] ? 1 : 0),
+    0,
+  );
+}
+
 type StrokeItem = Extract<CanvasItem, { kind: 'pen' | 'line' }>;
 
 function strokePoints(stroke: StrokeItem) {
@@ -262,9 +274,19 @@ function recognizePen(
     directDistance < Math.max(0.025, Math.min(bounds.width, visualHeight(bounds.height)) * 0.4);
   const rectangularity = getRectangularity(item);
   const horizontal = bounds.width > 0.045 && visualHeight(bounds.height) < 0.025;
+  const height = visualHeight(bounds.height);
+  const aspect = bounds.width / Math.max(height, 0.001);
+  const pathComplexity = length / Math.max(bounds.width, 0.001);
+  const squigglyText =
+    bounds.width > 0.035 &&
+    height >= 0.006 &&
+    height < 0.09 &&
+    aspect > 1.45 &&
+    pathComplexity > 1.16 &&
+    pathComplexity < 8 &&
+    directionChanges(item.points) >= 2;
 
   if (closed && rectangularity > 0.56 && bounds.width > 0.05) {
-    const aspect = bounds.width / visualHeight(bounds.height);
     const compact = bounds.width < 0.27 && visualHeight(bounds.height) < 0.13;
     return {
       id: `primitive-${item.id}`,
@@ -274,6 +296,17 @@ function recognizePen(
       confidence: clamp(0.62 + rectangularity * 0.25),
       manuallyCorrected: false,
       content: compact ? 'Get started' : undefined,
+    };
+  }
+
+  if (squigglyText) {
+    return {
+      id: `primitive-${item.id}`,
+      sourceItemIds: [item.id],
+      type: 'text',
+      bounds: { ...bounds, height: Math.max(bounds.height, 0.012) },
+      confidence: clamp(0.72 + Math.min(directionChanges(item.points), 7) * 0.025),
+      manuallyCorrected: false,
     };
   }
 
@@ -323,6 +356,18 @@ export function recognizeCanvas(items: CanvasItem[]) {
         content: item.content,
       });
       return;
+    }
+
+    if (item.kind === 'bitmap') {
+      primitives.push({
+        id: `primitive-${item.id}`,
+        sourceItemIds: [item.id],
+        type: 'image',
+        bounds: getCanvasItemBounds(item),
+        confidence: 1,
+        manuallyCorrected: false,
+        imageDataUrl: item.dataUrl,
+      });
     }
 
   });
@@ -457,6 +502,7 @@ export function inferWebsite(
       confidence: overrides[primitive.id] ? 1 : primitive.confidence,
       children: [],
       content: defaultContent(type, primitive),
+      imageDataUrl: primitive.imageDataUrl,
       orientation: primitive.orientation,
       sourcePrimitiveIds: [primitive.id],
     });

@@ -96,6 +96,11 @@ function renderNode(
   if (node.type === 'heading') return [`${pad}<h1${textStyle}>${content || 'Your headline'}</h1>`];
   if (node.type === 'paragraph') return [`${pad}<p${textStyle}>${content || 'Your supporting copy.'}</p>`];
   if (node.type === 'image') {
+    if (node.imageDataUrl) {
+      return [
+        `${pad}<img className="site-image imported" src="${jsxAttribute(node.imageDataUrl)}" alt="" />`,
+      ];
+    }
     return [`${pad}<div className="site-image" role="img" aria-label="Website visual" />`];
   }
   if (node.type === 'button') {
@@ -200,6 +205,7 @@ body { margin: 0; color: var(--ink); font-family: Inter, sans-serif; }
 .card p { color: var(--muted); line-height: 1.6; }
 .primary-button { display: inline-flex; min-width: 0; align-items: center; justify-content: center; border: 0; border-radius: 10px; background: var(--accent); color: white; padding: 14px 20px; overflow-wrap: anywhere; text-align: center; text-decoration: none; white-space: normal; }
 .site-image { flex: 1 1 320px; min-height: 300px; border-radius: 24px; background: linear-gradient(145deg, #dcecdf, #9fc4ad); }
+.site-image.imported { width: 100%; height: auto; min-height: 0; background: white; image-rendering: pixelated; object-fit: contain; }
 .contact-form { display: grid; width: min(560px, 100%); gap: 10px; padding: 48px 6vw; }
 .field { display: grid; gap: 6px; }
 input { min-height: 48px; margin-bottom: 12px; border: 1px solid #cdd7cf; border-radius: 9px; padding: 0 14px; }
@@ -214,7 +220,12 @@ footer { display: flex; align-items: center; gap: 20px; padding: 32px 6vw; color
 .spatial-row:not(.single) > .primary-button { width: 100%; }
 
 @media (max-width: 700px) {
-  .site-nav, .nav-content { align-items: flex-start; flex-direction: column; }
+  .site-nav { align-items: center; gap: 12px; padding: 16px 4vw; }
+  .site-nav .brand { min-width: 0; flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .nav-content { min-width: 0; margin-left: auto; flex-direction: row; flex-wrap: nowrap; gap: 8px; overflow-x: auto; }
+  .site-nav .mixed-layout { width: max-content; flex-direction: row; gap: 8px; }
+  .site-nav .spatial-row { width: auto; flex: 0 0 auto; gap: 8px; }
+  .site-nav .primary-button { width: auto; max-width: 120px; flex: 0 1 auto; padding: 10px 12px; overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
   .hero { padding-top: 56px; }
   .card-grid { grid-template-columns: 1fr; }
 }`;
