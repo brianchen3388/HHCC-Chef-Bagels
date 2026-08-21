@@ -5,6 +5,8 @@ export type Point = {
   timestamp: number;
 };
 
+export const CANVAS_PAGE_RATIO = 3;
+
 export type PenItem = {
   id: string;
   kind: 'pen';
@@ -107,9 +109,9 @@ export function getCanvasItemBounds(item: CanvasItem): Bounds {
     const width = Math.max(0.055, item.content.length * 0.016);
     return {
       x: item.position.x,
-      y: clamp(item.position.y - 0.045),
+      y: clamp(item.position.y - 0.018),
       width: Math.min(width, 1 - item.position.x),
-      height: 0.057,
+      height: 0.022,
     };
   }
 

@@ -1,9 +1,12 @@
 import {
+  boundsCenter,
   boundsContain,
+  CANVAS_PAGE_RATIO,
   clamp,
   getCanvasItemBounds,
   pageBounds,
   type CanvasItem,
+  type Bounds,
   type GeneratedWebsite,
   type Point,
   type RecognizedPrimitive,
@@ -14,7 +17,14 @@ import {
 } from './model';
 
 function distance(first: Point, second: Point) {
-  return Math.hypot(first.x - second.x, first.y - second.y);
+  return Math.hypot(
+    first.x - second.x,
+    (first.y - second.y) * CANVAS_PAGE_RATIO,
+  );
+}
+
+function visualHeight(height: number) {
+  return height * CANVAS_PAGE_RATIO;
 }
 
 function pathLength(points: Point[]) {
@@ -26,7 +36,7 @@ function pathLength(points: Point[]) {
 
 function getRectangularity(item: Extract<CanvasItem, { kind: 'pen' }>) {
   const bounds = getCanvasItemBounds(item);
-  if (bounds.width < 0.015 || bounds.height < 0.015) {
+  if (bounds.width < 0.015 || visualHeight(bounds.height) < 0.015) {
     return 0;
   }
 
@@ -57,8 +67,32 @@ function isDiagonal(item: CanvasItem) {
     return false;
   }
   const bounds = getCanvasItemBounds(item);
-  const slope = bounds.height / bounds.width;
+  const slope = visualHeight(bounds.height) / bounds.width;
   return bounds.width > 0.04 && slope > 0.35 && slope < 2.8;
+}
+
+function boundsVisuallyContain(outer: Bounds, inner: Bounds) {
+  const outerArea = outer.width * outer.height;
+  const innerArea = Math.max(0.000001, inner.width * inner.height);
+  if (outerArea <= innerArea * 1.04) return false;
+
+  const center = boundsCenter(inner);
+  const centerInside =
+    center.x >= outer.x &&
+    center.x <= outer.x + outer.width &&
+    center.y >= outer.y &&
+    center.y <= outer.y + outer.height;
+  const drawingAnchorInside =
+    inner.x >= outer.x &&
+    inner.x <= outer.x + outer.width &&
+    inner.y >= outer.y &&
+    inner.y <= outer.y + outer.height;
+
+  return boundsContain(outer, inner, 0.006) || centerInside || drawingAnchorInside;
+}
+
+function visuallyContains(outer: RecognizedPrimitive, inner: RecognizedPrimitive) {
+  return boundsVisuallyContain(outer.bounds, inner.bounds);
 }
 
 function framePrimitive(
@@ -66,14 +100,18 @@ function framePrimitive(
   items: CanvasItem[],
 ): RecognizedPrimitive {
   const bounds = getCanvasItemBounds(item);
-  const aspect = bounds.width / bounds.height;
+  const height = visualHeight(bounds.height);
+  const aspect = bounds.width / height;
   const internalItems = items.filter(
     (candidate) =>
       candidate.id !== item.id &&
-      boundsContain(bounds, getCanvasItemBounds(candidate), 0.02),
+      boundsVisuallyContain(bounds, getCanvasItemBounds(candidate)),
   );
   const diagonals = internalItems.filter(isDiagonal);
   const internalText = internalItems.find((candidate) => candidate.kind === 'text');
+  const hasNestedElement = internalItems.some(
+    (candidate) => candidate.kind !== 'text' && !isDiagonal(candidate),
+  );
 
   if (diagonals.length >= 2) {
     return {
@@ -86,7 +124,7 @@ function framePrimitive(
     };
   }
 
-  if (bounds.width < 0.27 && bounds.height < 0.13 && aspect > 1.5) {
+  if (!hasNestedElement && bounds.width < 0.27 && height < 0.13 && aspect > 1.5) {
     return {
       id: `primitive-${item.id}`,
       sourceItemIds: [item.id],
@@ -99,9 +137,10 @@ function framePrimitive(
   }
 
   if (
+    !hasNestedElement &&
     bounds.width >= 0.27 &&
     bounds.width < 0.62 &&
-    bounds.height < 0.105 &&
+    height < 0.105 &&
     aspect > 3
   ) {
     return {
@@ -135,13 +174,13 @@ function recognizePen(
   const directDistance = distance(first, last);
   const closed =
     item.points.length > 5 &&
-    directDistance < Math.max(0.025, Math.min(bounds.width, bounds.height) * 0.4);
+    directDistance < Math.max(0.025, Math.min(bounds.width, visualHeight(bounds.height)) * 0.4);
   const rectangularity = getRectangularity(item);
-  const horizontal = bounds.width > 0.045 && bounds.height < 0.025;
+  const horizontal = bounds.width > 0.045 && visualHeight(bounds.height) < 0.025;
 
   if (closed && rectangularity > 0.56 && bounds.width > 0.05) {
-    const aspect = bounds.width / bounds.height;
-    const compact = bounds.width < 0.27 && bounds.height < 0.13;
+    const aspect = bounds.width / visualHeight(bounds.height);
+    const compact = bounds.width < 0.27 && visualHeight(bounds.height) < 0.13;
     return {
       id: `primitive-${item.id}`,
       sourceItemIds: [item.id],
@@ -158,7 +197,7 @@ function recognizePen(
       id: `primitive-${item.id}`,
       sourceItemIds: [item.id],
       type: 'text',
-      bounds: { ...bounds, height: Math.max(bounds.height, 0.03) },
+      bounds: { ...bounds, height: Math.max(bounds.height, 0.012) },
       confidence: 0.78,
       manuallyCorrected: false,
     };
@@ -203,13 +242,13 @@ export function recognizeCanvas(items: CanvasItem[]) {
 
     if (item.kind === 'line') {
       const bounds = getCanvasItemBounds(item);
-      const horizontal = bounds.width > 0.045 && bounds.height < 0.025;
+      const horizontal = bounds.width > 0.045 && visualHeight(bounds.height) < 0.025;
       primitives.push({
         id: `primitive-${item.id}`,
         sourceItemIds: [item.id],
         type: horizontal ? 'text' : 'divider',
         bounds: horizontal
-          ? { ...bounds, height: Math.max(bounds.height, 0.028) }
+          ? { ...bounds, height: Math.max(bounds.height, 0.012) }
           : bounds,
         confidence: horizontal ? 0.88 : 0.7,
         manuallyCorrected: false,
@@ -232,7 +271,7 @@ function isWideTopContainer(primitive: RecognizedPrimitive) {
     primitive.type === 'container' &&
     primitive.bounds.width > 0.58 &&
     primitive.bounds.y < 0.18 &&
-    primitive.bounds.height < 0.2
+    visualHeight(primitive.bounds.height) < 0.2
   );
 }
 
@@ -271,22 +310,22 @@ export function inferWebsite(
     if (
       primitive.bounds.width > 0.55 &&
       primitive.bounds.y < 0.48 &&
-      primitive.bounds.height > 0.16
+      visualHeight(primitive.bounds.height) > 0.16
     ) {
       return 'hero';
     }
     const containedContainers = containers.filter(
       (candidate) =>
         candidate.id !== primitive.id &&
-        boundsContain(primitive.bounds, candidate.bounds, 0.01),
+        visuallyContains(primitive, candidate),
     );
     if (primitive.bounds.width > 0.35 && containedContainers.length >= 2) {
       return 'cardGrid';
     }
     if (
       primitive.bounds.width <= 0.43 &&
-      primitive.bounds.height >= 0.1 &&
-      primitive.bounds.height <= 0.48
+      visualHeight(primitive.bounds.height) >= 0.1 &&
+      visualHeight(primitive.bounds.height) <= 0.48
     ) {
       return 'card';
     }
@@ -307,6 +346,7 @@ export function inferWebsite(
   }
 
   const nodes = new Map<string, WebsiteNode>();
+  const primitiveByNodeId = new Map<string, RecognizedPrimitive>();
   sorted.forEach((primitive) => {
     const type = overrides[primitive.id] ?? automaticType(primitive);
     nodes.set(`node-${primitive.id}`, {
@@ -318,10 +358,22 @@ export function inferWebsite(
       content: defaultContent(type, primitive),
       sourcePrimitiveIds: [primitive.id],
     });
+    primitiveByNodeId.set(`node-${primitive.id}`, primitive);
   });
 
   const canContain = (type: WebsiteNodeType) =>
-    ['navbar', 'hero', 'section', 'cardGrid', 'card', 'form', 'footer'].includes(type);
+    [
+      'navbar',
+      'hero',
+      'section',
+      'cardGrid',
+      'card',
+      'button',
+      'input',
+      'image',
+      'form',
+      'footer',
+    ].includes(type);
   const parentByNodeId: Record<string, string> = {};
 
   nodes.forEach((current) => {
@@ -330,7 +382,10 @@ export function inferWebsite(
         (candidate) =>
           candidate.id !== current.id &&
           canContain(candidate.type) &&
-          boundsContain(candidate.bounds, current.bounds, 0.008),
+          visuallyContains(
+            primitiveByNodeId.get(candidate.id)!,
+            primitiveByNodeId.get(current.id)!,
+          ),
       )
       .sort(
         (first, second) =>

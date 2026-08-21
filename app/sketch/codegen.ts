@@ -9,6 +9,17 @@ function jsxText(value: string) {
     .replaceAll('}', '&#125;');
 }
 
+function jsxAttribute(value: string) {
+  return jsxText(value).replaceAll('"', '&quot;');
+}
+
+function nestedText(node: WebsiteNode) {
+  return node.children
+    .map((child) => child.content)
+    .filter(Boolean)
+    .join(' ');
+}
+
 function renderNode(node: WebsiteNode, depth: number, insideForm = false): string[] {
   const pad = '  '.repeat(depth);
   const content = jsxText(node.content ?? '');
@@ -60,13 +71,16 @@ function renderNode(node: WebsiteNode, depth: number, insideForm = false): strin
     return [`${pad}<div className="site-image" role="img" aria-label="Website visual" />`];
   }
   if (node.type === 'button') {
-    return [`${pad}<button className="primary-button" type="${insideForm ? 'submit' : 'button'}">${content || 'Get started'}</button>`];
+    const label = jsxText(nestedText(node)) || content || 'Get started';
+    return [`${pad}<button className="primary-button" type="${insideForm ? 'submit' : 'button'}">${label}</button>`];
   }
   if (node.type === 'input') {
     const inputId = node.id.replace(/[^a-zA-Z0-9-]/g, '');
+    const rawLabel = nestedText(node) || node.content || 'Your details';
+    const label = jsxText(rawLabel);
     return [
-      `${pad}<label htmlFor="${inputId}">${content || 'Your details'}</label>`,
-      `${pad}<input id="${inputId}" name="${inputId}" />`,
+      `${pad}<label htmlFor="${inputId}">${label}</label>`,
+      `${pad}<input id="${inputId}" name="${inputId}" placeholder="${jsxAttribute(rawLabel)}" />`,
     ];
   }
   if (node.type === 'form') {

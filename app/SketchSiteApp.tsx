@@ -53,6 +53,9 @@ const containerTypes = new Set<WebsiteNode['type']>([
   'section',
   'cardGrid',
   'card',
+  'button',
+  'input',
+  'image',
   'form',
   'footer',
 ]);
@@ -85,12 +88,16 @@ function GeneratedNode({ node, insideForm = false }: { node: WebsiteNode; inside
   }
   if (node.type === 'heading') return <h1>{node.content ?? 'Your headline'}</h1>;
   if (node.type === 'paragraph') return <p>{node.content ?? 'Your supporting copy.'}</p>;
+  const nestedLabel = node.children
+    .map((child) => child.content)
+    .filter(Boolean)
+    .join(' ');
   if (node.type === 'image') {
     return <div aria-label="Generated visual placeholder" className="generated-image" role="img"><span>Image</span></div>;
   }
-  if (node.type === 'button') return <button className="generated-button" type={insideForm ? 'submit' : 'button'}>{node.content ?? 'Get started'}</button>;
+  if (node.type === 'button') return <button className="generated-button" type={insideForm ? 'submit' : 'button'}>{nestedLabel || node.content || 'Get started'}</button>;
   if (node.type === 'input') {
-    return <label className="generated-field">{node.content ?? 'Your details'}<input /></label>;
+    return <label className="generated-field">{nestedLabel || node.content || 'Your details'}<input placeholder={nestedLabel || node.content} /></label>;
   }
   if (node.type === 'form') {
     return <form className="generated-form" onSubmit={(event) => event.preventDefault()}>{children}</form>;

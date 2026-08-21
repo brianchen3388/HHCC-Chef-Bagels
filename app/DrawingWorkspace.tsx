@@ -6,6 +6,7 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from 'react';
 import {
+  CANVAS_PAGE_RATIO,
   clamp,
   getCanvasItemBounds,
   type CanvasItem,
@@ -59,6 +60,8 @@ const toolOptions: Array<{ id: Tool; label: string }> = [
 ];
 
 let itemSequence = 0;
+const CANVAS_WIDTH = 1000;
+const CANVAS_HEIGHT = CANVAS_WIDTH * CANVAS_PAGE_RATIO;
 
 function createItemId(kind: CanvasItem['kind']) {
   itemSequence += 1;
@@ -221,8 +224,8 @@ function CanvasItemShape({ item }: { item: CanvasItem }) {
         <circle
           {...itemAttributes}
           className="canvas-dot"
-          cx={point.x * 1000}
-          cy={point.y * 1000}
+          cx={point.x * CANVAS_WIDTH}
+          cy={point.y * CANVAS_HEIGHT}
           r="2.5"
         />
       );
@@ -233,7 +236,7 @@ function CanvasItemShape({ item }: { item: CanvasItem }) {
         {...itemAttributes}
         className="canvas-pen"
         points={item.points
-          .map((point) => `${point.x * 1000},${point.y * 1000}`)
+          .map((point) => `${point.x * CANVAS_WIDTH},${point.y * CANVAS_HEIGHT}`)
           .join(' ')}
       />
     );
@@ -244,10 +247,10 @@ function CanvasItemShape({ item }: { item: CanvasItem }) {
       <line
         {...itemAttributes}
         className="canvas-line"
-        x1={item.start.x * 1000}
-        x2={item.end.x * 1000}
-        y1={item.start.y * 1000}
-        y2={item.end.y * 1000}
+        x1={item.start.x * CANVAS_WIDTH}
+        x2={item.end.x * CANVAS_WIDTH}
+        y1={item.start.y * CANVAS_HEIGHT}
+        y2={item.end.y * CANVAS_HEIGHT}
       />
     );
   }
@@ -258,10 +261,10 @@ function CanvasItemShape({ item }: { item: CanvasItem }) {
       <rect
         {...itemAttributes}
         className="canvas-frame"
-        height={(bounds.bottom - bounds.top) * 1000}
-        width={(bounds.right - bounds.left) * 1000}
-        x={bounds.left * 1000}
-        y={bounds.top * 1000}
+        height={(bounds.bottom - bounds.top) * CANVAS_HEIGHT}
+        width={(bounds.right - bounds.left) * CANVAS_WIDTH}
+        x={bounds.left * CANVAS_WIDTH}
+        y={bounds.top * CANVAS_HEIGHT}
       />
     );
   }
@@ -270,8 +273,8 @@ function CanvasItemShape({ item }: { item: CanvasItem }) {
     <text
       {...itemAttributes}
       className="canvas-text"
-      x={item.position.x * 1000}
-      y={item.position.y * 1000}
+      x={item.position.x * CANVAS_WIDTH}
+      y={item.position.y * CANVAS_HEIGHT}
     >
       {item.content}
     </text>
@@ -281,16 +284,16 @@ function CanvasItemShape({ item }: { item: CanvasItem }) {
 function SelectionOutline({ item }: { item: CanvasItem }) {
   const bounds = getItemBounds(item);
   const padding = 8;
-  const width = Math.max(12, (bounds.right - bounds.left) * 1000);
-  const height = Math.max(12, (bounds.bottom - bounds.top) * 1000);
+  const width = Math.max(12, (bounds.right - bounds.left) * CANVAS_WIDTH);
+  const height = Math.max(12, (bounds.bottom - bounds.top) * CANVAS_HEIGHT);
 
   return (
     <rect
       className="selection-outline"
       height={height + padding * 2}
       width={width + padding * 2}
-      x={bounds.left * 1000 - padding}
-      y={bounds.top * 1000 - padding}
+      x={bounds.left * CANVAS_WIDTH - padding}
+      y={bounds.top * CANVAS_HEIGHT - padding}
     />
   );
 }
@@ -641,63 +644,67 @@ export default function DrawingWorkspace({
         </button>
       </div>
 
-      <div className="canvas-wrap">
-        {items.length === 0 && draftItem === null && (
-          <div className="canvas-empty">
-            <div className="empty-icon" aria-hidden="true">
-              <span />
-              <span />
-              <span />
+      <div className="canvas-shell">
+        <div className="canvas-wrap">
+          <div className="canvas-page">
+          {items.length === 0 && draftItem === null && (
+            <div className="canvas-empty">
+              <div className="empty-icon" aria-hidden="true">
+                <span />
+                <span />
+                <span />
+              </div>
+              <h2>Your canvas is ready</h2>
+              <p>Choose a tool, then draw or scroll down to build a full page.</p>
             </div>
-            <h2>Your canvas is ready</h2>
-            <p>Choose a tool, then draw or place an element.</p>
-          </div>
-        )}
-
-        <svg
-          aria-label={`Wireframe canvas. ${toolOptions.find((tool) => tool.id === activeTool)?.label} tool selected.`}
-          className={`drawing-surface tool-${activeTool}`}
-          onPointerCancel={cancelGesture}
-          onPointerDown={startGesture}
-          onPointerMove={continueGesture}
-          onPointerUp={finishGesture}
-          preserveAspectRatio="none"
-          role="application"
-          viewBox="0 0 1000 1000"
-        >
-          <g className="canvas-items">
-            {visibleItems.map((item) => (
-              <CanvasItemShape item={item} key={item.id} />
-            ))}
-          </g>
-          {activeTool === 'select' && selectedItem && (
-            <SelectionOutline item={selectedItem} />
           )}
-          <g className="recognition-layer" aria-hidden="true">
-            {recognizedPrimitives.map((primitive) => (
-              <g
-                className={`recognition-box ${confidenceLabel(primitive.confidence)}`}
-                key={primitive.id}
-              >
-                <rect
-                  height={Math.max(24, primitive.bounds.height * 1000)}
-                  width={Math.max(38, primitive.bounds.width * 1000)}
-                  x={primitive.bounds.x * 1000}
-                  y={primitive.bounds.y * 1000}
-                />
-                <text
-                  x={primitive.bounds.x * 1000 + 7}
-                  y={Math.max(14, primitive.bounds.y * 1000 - 7)}
-                >
-                  {primitiveLabel(primitive.type)}{' '}
-                  {Math.round(primitive.confidence * 100)}%
-                </text>
-              </g>
-            ))}
-          </g>
-        </svg>
 
-        <span className="zoom-label">100%</span>
+          <svg
+            aria-label={`Scrollable wireframe canvas. ${toolOptions.find((tool) => tool.id === activeTool)?.label} tool selected.`}
+            className={`drawing-surface tool-${activeTool}`}
+            onPointerCancel={cancelGesture}
+            onPointerDown={startGesture}
+            onPointerMove={continueGesture}
+            onPointerUp={finishGesture}
+            preserveAspectRatio="none"
+            role="application"
+            viewBox={`0 0 ${CANVAS_WIDTH} ${CANVAS_HEIGHT}`}
+          >
+            <g className="canvas-items">
+              {visibleItems.map((item) => (
+                <CanvasItemShape item={item} key={item.id} />
+              ))}
+            </g>
+            {activeTool === 'select' && selectedItem && (
+              <SelectionOutline item={selectedItem} />
+            )}
+            <g className="recognition-layer" aria-hidden="true">
+              {recognizedPrimitives.map((primitive) => (
+                <g
+                  className={`recognition-box ${confidenceLabel(primitive.confidence)}`}
+                  key={primitive.id}
+                >
+                  <rect
+                    height={Math.max(24, primitive.bounds.height * CANVAS_HEIGHT)}
+                    width={Math.max(38, primitive.bounds.width * CANVAS_WIDTH)}
+                    x={primitive.bounds.x * CANVAS_WIDTH}
+                    y={primitive.bounds.y * CANVAS_HEIGHT}
+                  />
+                  <text
+                    x={primitive.bounds.x * CANVAS_WIDTH + 7}
+                    y={Math.max(14, primitive.bounds.y * CANVAS_HEIGHT - 7)}
+                  >
+                    {primitiveLabel(primitive.type)}{' '}
+                    {Math.round(primitive.confidence * 100)}%
+                  </text>
+                </g>
+              ))}
+            </g>
+          </svg>
+          </div>
+        </div>
+
+        <span className="zoom-label">Full page · 100%</span>
       </div>
 
       <footer className="panel-footer">

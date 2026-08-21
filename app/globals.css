@@ -216,15 +216,28 @@ button:disabled { color: inherit; cursor: default; opacity: 1; }
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
-.canvas-wrap {
+.canvas-shell {
   position: relative;
-  display: grid;
   min-height: 380px;
-  place-items: center;
   overflow: hidden;
+}
+
+.canvas-wrap {
+  height: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  background: #edf0ec;
+}
+
+.canvas-page {
+  position: relative;
+  height: 1800px;
   background-color: #fafbf9;
   background-image: radial-gradient(#cfd7cf 0.8px, transparent 0.8px);
   background-size: 18px 18px;
+  box-shadow: 0 8px 24px rgb(29 43 34 / 8%);
 }
 
 .drawing-surface {
@@ -238,7 +251,7 @@ button:disabled { color: inherit; cursor: default; opacity: 1; }
   user-select: none;
 }
 
-.drawing-surface.tool-select { cursor: default; }
+.drawing-surface.tool-select { cursor: default; touch-action: pan-y; }
 .drawing-surface.tool-erase { cursor: cell; }
 .drawing-surface.tool-text { cursor: text; }
 
@@ -316,6 +329,11 @@ button:disabled { color: inherit; cursor: default; opacity: 1; }
 }
 
 .canvas-empty {
+  position: absolute;
+  top: 115px;
+  left: 50%;
+  width: min(350px, 90%);
+  transform: translateX(-50%);
   z-index: 1;
   pointer-events: none;
 }
