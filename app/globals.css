@@ -192,6 +192,24 @@ button:disabled { color: inherit; cursor: default; opacity: 1; }
 .icon-button { border-color: var(--line); }
 .icon-button:not(:disabled):hover { border-color: #aebbb1; background: #f5f7f4; }
 
+.text-tool-input {
+  width: 110px;
+  min-width: 88px;
+  height: 31px;
+  border: 1px solid #c9d2cb;
+  border-radius: 7px;
+  background: white;
+  padding: 0 9px;
+  color: var(--ink);
+  font-size: 11px;
+  outline: none;
+}
+
+.text-tool-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
 .canvas-wrap {
   position: relative;
   display: grid;
@@ -214,8 +232,14 @@ button:disabled { color: inherit; cursor: default; opacity: 1; }
   user-select: none;
 }
 
-.stroke-layer {
-  fill: var(--ink);
+.drawing-surface.tool-select { cursor: default; }
+.drawing-surface.tool-erase { cursor: cell; }
+.drawing-surface.tool-text { cursor: text; }
+
+.canvas-pen,
+.canvas-line,
+.canvas-frame {
+  fill: none;
   stroke: var(--ink);
   stroke-width: 3.25;
   stroke-linecap: round;
@@ -223,9 +247,32 @@ button:disabled { color: inherit; cursor: default; opacity: 1; }
   vector-effect: non-scaling-stroke;
 }
 
-.stroke-layer polyline {
-  fill: none;
+.canvas-frame {
+  fill: rgb(255 255 255 / 1%);
+}
+
+.canvas-dot {
+  fill: var(--ink);
+  stroke: none;
+}
+
+.canvas-text {
+  fill: var(--ink);
+  stroke: none;
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+  font-size: 26px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  user-select: none;
+}
+
+.selection-outline {
+  fill: rgb(36 107 71 / 5%);
+  stroke: var(--accent);
+  stroke-width: 2;
+  stroke-dasharray: 8 6;
   vector-effect: non-scaling-stroke;
+  pointer-events: none;
 }
 
 .canvas-empty,
