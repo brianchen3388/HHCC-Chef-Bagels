@@ -5,9 +5,9 @@ import {
   validateComponentScene,
 } from '@/lib/contracts';
 import {
-  KimiRequestError,
   kimiErrorResponse,
   requestKimiJson,
+  requestKimiValidatedJson,
 } from '@/lib/kimi';
 
 const MAX_REQUEST_LENGTH = 15_000_000;
@@ -120,58 +120,41 @@ export async function POST(request: Request) {
           },
         ];
 
-      const requestDelta = (extraInstruction?: string) =>
-        requestKimiJson({
-          model: visionModel,
-          ...(visionModel === 'kimi-k3'
-            ? { reasoningEffort: 'low' as const }
-            : {}),
-          maxTokens: 12000,
-          retryMaxTokens: 24000,
-          schemaName: 'sketchsite_component_delta',
-          schema: componentDeltaJsonSchema,
-          messages: extraInstruction
-            ? [...deltaMessages, { role: 'user', content: extraInstruction }]
-            : deltaMessages,
-        });
-
-      let validatedDelta: ReturnType<typeof validateComponentDelta>;
-      try {
-        validatedDelta = validateComponentDelta(
-          await requestDelta(),
-          previousScene,
-        );
-      } catch (error) {
-        if (error instanceof KimiRequestError) throw error;
-
-        try {
-          validatedDelta = validateComponentDelta(
-            await requestDelta(
-              'Retry the comparison carefully. Verify before returning that every updated or deleted ID exists in the previous scene, every added ID is new, no ID appears in multiple operations, all parent IDs exist in the resulting scene, and the root page is never deleted.',
-            ),
-            previousScene,
-          );
-        } catch (retryError) {
-          if (retryError instanceof KimiRequestError) throw retryError;
-          throw new KimiRequestError(
-            'KIMI_INVALID_STRUCTURE',
-            502,
-            'Kimi 返回的组件变更结构不一致，请再次生成。',
-          );
-        }
-      }
+      const validatedDelta = await requestKimiValidatedJson({
+        model: visionModel,
+        ...(visionModel === 'kimi-k3'
+          ? { reasoningEffort: 'low' as const }
+          : {}),
+        maxTokens: 12000,
+        retryMaxTokens: 24000,
+        schemaName: 'sketchsite_component_delta',
+        schema: componentDeltaJsonSchema,
+        messages: deltaMessages,
+        validate: (value) => validateComponentDelta(value, previousScene),
+        validationRetryInstruction:
+          'Your previous result was valid JSON but violated the component-delta invariants. Retry the same comparison. Verify before returning that every updated or deleted ID exists in the previous scene, every added ID is new, no ID appears in multiple operations, every parent ID exists in the resulting scene, bounds remain inside the canvas, and the root page is never deleted.',
+        validationErrorCode: 'KIMI_INVALID_DELTA',
+        validationErrorMessage:
+          'Kimi 返回的组件变更结构不一致，系统已自动重试。请再次生成。',
+      });
 
       const { changes, scene } = validatedDelta;
       return Response.json({ mode: 'delta', changes, scene });
     }
 
-    const rawScene = await requestKimiJson({
+    const scene = await requestKimiValidatedJson({
       model: visionModel,
       ...(visionModel === 'kimi-k3' ? { reasoningEffort: 'low' as const } : {}),
       maxTokens: 12000,
       retryMaxTokens: 24000,
       schemaName: 'sketchsite_component_scene',
       schema: componentSceneJsonSchema,
+      validate: validateComponentScene,
+      validationRetryInstruction:
+        'Your previous result was valid JSON but violated the component-scene invariants. Retry the same analysis. Return a 1000x1000 scene with unique IDs, valid normalized bounds, existing parent references, no hierarchy cycles, exactly one root page, and no unsupported or extra fields.',
+      validationErrorCode: 'KIMI_INVALID_SCENE',
+      validationErrorMessage:
+        'Kimi 返回的组件结构不一致，系统已自动重试。请简化草图后再次生成。',
       messages: [
         {
           role: 'system',
@@ -195,7 +178,6 @@ export async function POST(request: Request) {
       ],
     });
 
-    const scene = validateComponentScene(rawScene);
     return Response.json({ mode: 'full', scene });
   } catch (error) {
     return kimiErrorResponse(error);

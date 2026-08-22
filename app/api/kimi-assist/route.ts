@@ -1,4 +1,4 @@
-import { KimiRequestError, kimiErrorResponse, requestKimiJson } from '@/lib/kimi';
+import { kimiErrorResponse, requestKimiValidatedJson } from '@/lib/kimi';
 
 const MAX_REQUEST_LENGTH = 180_000;
 const COMPONENT_TYPES = [
@@ -93,14 +93,14 @@ function validateCss(value: unknown) {
   const result = asRecord(value);
   const css = result?.css;
   if (typeof css !== 'string' || css.length < 100 || css.length > 80_000) {
-    throw new KimiRequestError('KIMI_INVALID_CSS', 502, 'Kimi returned invalid CSS.');
+    throw new Error('Kimi returned invalid CSS.');
   }
   if (/(@import|url\s*\(|expression\s*\(|javascript:|behavior\s*:|-moz-binding)/i.test(css)) {
-    throw new KimiRequestError('KIMI_UNSAFE_CSS', 502, 'Kimi returned unsupported CSS.');
+    throw new Error('Kimi returned unsupported CSS.');
   }
   const missing = REQUIRED_SELECTORS.filter((selector) => !css.includes(selector));
   if (missing.length > 0) {
-    throw new KimiRequestError('KIMI_INCOMPLETE_CSS', 502, 'Kimi omitted required component styles.');
+    throw new Error('Kimi omitted required component styles.');
   }
   return css;
 }
@@ -123,7 +123,7 @@ export async function POST(request: Request) {
       const currentType = shortString(body.currentType, 30);
       if (!primitiveId || !currentType || !validContext(body.context)) return invalidRequest();
 
-      const result = asRecord(await requestKimiJson({
+      const type = await requestKimiValidatedJson({
         model: process.env.KIMI_FAST_MODEL ?? process.env.KIMI_CODE_MODEL ?? 'kimi-k2.7-code-highspeed',
         maxTokens: 100,
         timeoutMs: 12_000,
@@ -134,6 +134,18 @@ export async function POST(request: Request) {
           required: ['type'],
           properties: { type: { type: 'string', enum: COMPONENT_TYPES } },
         },
+        validate: (value) => {
+          const result = asRecord(value);
+          const nextType = result?.type;
+          if (!COMPONENT_TYPES.includes(nextType as typeof COMPONENT_TYPES[number])) {
+            throw new Error('Kimi returned an invalid component type.');
+          }
+          return nextType as typeof COMPONENT_TYPES[number];
+        },
+        validationRetryInstruction:
+          'Your previous result was valid JSON but contained an invalid component type. Retry the same classification and return exactly one type from the schema enum with no extra fields.',
+        validationErrorCode: 'KIMI_INVALID_STRUCTURE',
+        validationErrorMessage: 'Kimi returned an invalid component type after retrying.',
         messages: [
           {
             role: 'system',
@@ -150,11 +162,7 @@ export async function POST(request: Request) {
             ].join('\n'),
           },
         ],
-      }));
-      const type = result?.type;
-      if (!COMPONENT_TYPES.includes(type as typeof COMPONENT_TYPES[number])) {
-        throw new KimiRequestError('KIMI_INVALID_STRUCTURE', 502, 'Kimi returned an invalid component type.');
-      }
+      });
       return Response.json({ type });
     }
 
@@ -167,7 +175,7 @@ export async function POST(request: Request) {
         return invalidRequest();
       }
 
-      const result = asRecord(await requestKimiJson({
+      const pairWith = await requestKimiValidatedJson({
         model: process.env.KIMI_FAST_MODEL ?? process.env.KIMI_CODE_MODEL ?? 'kimi-k2.7-code-highspeed',
         maxTokens: 100,
         timeoutMs: 12_000,
@@ -185,6 +193,21 @@ export async function POST(request: Request) {
             },
           },
         },
+        validate: (value) => {
+          const result = asRecord(value);
+          const nextPair = result?.pairWith;
+          if (
+            nextPair !== null &&
+            (typeof nextPair !== 'string' || !candidates.includes(nextPair))
+          ) {
+            throw new Error('Kimi returned an invalid pair.');
+          }
+          return nextPair as string | null;
+        },
+        validationRetryInstruction:
+          'Your previous result was valid JSON but selected an invalid row partner. Retry the same pairing task and return either null or exactly one ID from the provided schema enum, with no extra fields.',
+        validationErrorCode: 'KIMI_INVALID_STRUCTURE',
+        validationErrorMessage: 'Kimi returned an invalid pair after retrying.',
         messages: [
           {
             role: 'system',
@@ -202,11 +225,7 @@ export async function POST(request: Request) {
             ].join('\n'),
           },
         ],
-      }));
-      const pairWith = result?.pairWith;
-      if (pairWith !== null && (typeof pairWith !== 'string' || !candidates.includes(pairWith))) {
-        throw new KimiRequestError('KIMI_INVALID_STRUCTURE', 502, 'Kimi returned an invalid pair.');
-      }
+      });
       return Response.json({ pairWith });
     }
 
@@ -220,7 +239,7 @@ export async function POST(request: Request) {
         : [];
       if (originalCss.length < 100 || originalCss.length > 100_000) return invalidRequest();
 
-      const rawResult = await requestKimiJson({
+      const css = await requestKimiValidatedJson({
         model: process.env.KIMI_CODE_MODEL ?? 'kimi-k2.7-code-highspeed',
         maxTokens: 12_000,
         retryMaxTokens: 18_000,
@@ -232,6 +251,15 @@ export async function POST(request: Request) {
           required: ['css'],
           properties: { css: { type: 'string' } },
         },
+        validate: validateCss,
+        validationRetryInstruction: [
+          'Your previous result was valid JSON but failed CSS validation.',
+          'Retry the same styling task with a complete CSS string between 100 and 80000 characters.',
+          'Do not use @import, url(), expression(), javascript:, behavior, or -moz-binding.',
+          `Include every required selector exactly as CSS selectors: ${REQUIRED_SELECTORS.join(', ')}`,
+        ].join(' '),
+        validationErrorCode: 'KIMI_INVALID_CSS',
+        validationErrorMessage: 'Kimi returned invalid or incomplete CSS after retrying.',
         messages: [
           {
             role: 'system',
@@ -251,7 +279,7 @@ export async function POST(request: Request) {
           },
         ],
       });
-      return Response.json({ css: validateCss(rawResult) });
+      return Response.json({ css });
     }
 
     return invalidRequest();

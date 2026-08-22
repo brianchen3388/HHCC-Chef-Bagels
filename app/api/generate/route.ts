@@ -4,7 +4,7 @@ import {
   validateComponentScene,
   validateGeneratedPage,
 } from '@/lib/contracts';
-import { kimiErrorResponse, requestKimiJson } from '@/lib/kimi';
+import { kimiErrorResponse, requestKimiValidatedJson } from '@/lib/kimi';
 
 const MAX_REQUEST_LENGTH = 450_000;
 
@@ -54,12 +54,18 @@ export async function POST(request: Request) {
         return Response.json({ page: previousPage, unchanged: true });
       }
 
-      const rawUpdatedPage = await requestKimiJson({
+      const page = await requestKimiValidatedJson({
         model: process.env.KIMI_CODE_MODEL ?? 'kimi-k2.7-code-highspeed',
         maxTokens: 30000,
         retryMaxTokens: 32000,
         schemaName: 'sketchsite_updated_page',
         schema: generatedPageJsonSchema,
+        validate: validateGeneratedPage,
+        validationRetryInstruction:
+          'Your previous result was valid JSON but failed webpage validation. Retry the same update and return complete raw JSON. HTML must be a fragment without html, head, body, style, script, iframe, object, embed, link, meta, svg, math, event attributes, or javascript URLs. CSS must not contain @import, url(), expression(), javascript URLs, or a closing style tag. Keep HTML and CSS under 100000 characters each and satisfy every style metadata limit.',
+        validationErrorCode: 'KIMI_INVALID_PAGE',
+        validationErrorMessage:
+          'Kimi 返回的网页代码未通过安全校验，系统已自动重试。请再次生成。',
         messages: [
           {
             role: 'system',
@@ -83,17 +89,22 @@ export async function POST(request: Request) {
         ],
       });
 
-      const page = validateGeneratedPage(rawUpdatedPage);
       return Response.json({ page, unchanged: false });
     }
 
     const scene = validateComponentScene(bodyRecord.scene);
-    const rawPage = await requestKimiJson({
+    const page = await requestKimiValidatedJson({
       model: process.env.KIMI_CODE_MODEL ?? 'kimi-k2.7-code-highspeed',
       maxTokens: 20000,
       retryMaxTokens: 30000,
       schemaName: 'sketchsite_generated_page',
       schema: generatedPageJsonSchema,
+      validate: validateGeneratedPage,
+      validationRetryInstruction:
+        'Your previous result was valid JSON but failed webpage validation. Retry the same generation and return complete raw JSON. HTML must be a fragment without html, head, body, style, script, iframe, object, embed, link, meta, svg, math, event attributes, or javascript URLs. CSS must not contain @import, url(), expression(), javascript URLs, or a closing style tag. Keep HTML and CSS under 100000 characters each and satisfy every style metadata limit.',
+      validationErrorCode: 'KIMI_INVALID_PAGE',
+      validationErrorMessage:
+        'Kimi 返回的网页代码未通过安全校验，系统已自动重试。请再次生成。',
       messages: [
         {
           role: 'system',
@@ -119,7 +130,6 @@ export async function POST(request: Request) {
       ],
     });
 
-    const page = validateGeneratedPage(rawPage);
     return Response.json({ page });
   } catch (error) {
     return kimiErrorResponse(error);
