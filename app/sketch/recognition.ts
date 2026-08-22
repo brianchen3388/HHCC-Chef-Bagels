@@ -7,6 +7,7 @@ import {
   pageBounds,
   type CanvasItem,
   type Bounds,
+  type DividerOrientation,
   type ElementCustomizations,
   type GeneratedWebsite,
   type LayoutDirection,
@@ -496,6 +497,45 @@ function canMergeStackedParagraphs(
   });
 }
 
+function dividerOrientation(node: WebsiteNode): DividerOrientation {
+  return node.orientation ?? (
+    node.bounds.width >= visualHeight(node.bounds.height) ? 'horizontal' : 'vertical'
+  );
+}
+
+function dividerSeparates(first: WebsiteNode, second: WebsiteNode, divider: WebsiteNode) {
+  const firstCenter = boundsCenter(first.bounds);
+  const secondCenter = boundsCenter(second.bounds);
+  const dividerCenter = boundsCenter(divider.bounds);
+  if (dividerOrientation(divider) === 'vertical') {
+    const liesBetween =
+      dividerCenter.x > Math.min(firstCenter.x, secondCenter.x) &&
+      dividerCenter.x < Math.max(firstCenter.x, secondCenter.x);
+    const crossesPair =
+      divider.bounds.y + divider.bounds.height >
+        Math.min(first.bounds.y, second.bounds.y) &&
+      divider.bounds.y <
+        Math.max(
+          first.bounds.y + first.bounds.height,
+          second.bounds.y + second.bounds.height,
+        );
+    return liesBetween && crossesPair;
+  }
+
+  const liesBetween =
+    dividerCenter.y > Math.min(firstCenter.y, secondCenter.y) &&
+    dividerCenter.y < Math.max(firstCenter.y, secondCenter.y);
+  const crossesPair =
+    divider.bounds.x + divider.bounds.width >
+      Math.min(first.bounds.x, second.bounds.x) &&
+    divider.bounds.x <
+      Math.max(
+        first.bounds.x + first.bounds.width,
+        second.bounds.x + second.bounds.width,
+      );
+  return liesBetween && crossesPair;
+}
+
 export function inferWebsite(
   primitives: RecognizedPrimitive[],
   overrides: StructureOverrides = {},
@@ -575,19 +615,22 @@ export function inferWebsite(
     primitiveByNodeId.set(`node-${primitive.id}`, primitive);
   });
 
-  const canContain = (type: WebsiteNodeType) =>
-    [
-      'navbar',
-      'hero',
-      'section',
-      'cardGrid',
-      'card',
-      'button',
-      'input',
-      'image',
-      'form',
-      'footer',
-    ].includes(type);
+  const structuralContainerTypes = new Set<WebsiteNodeType>([
+    'navbar',
+    'hero',
+    'section',
+    'cardGrid',
+    'card',
+    'form',
+    'footer',
+  ]);
+  const textNodeTypes = new Set<WebsiteNodeType>(['heading', 'paragraph']);
+  const canContainChild = (parent: WebsiteNode, child: WebsiteNode) =>
+    structuralContainerTypes.has(parent.type) ||
+    (
+      (parent.type === 'button' || parent.type === 'input') &&
+      textNodeTypes.has(child.type)
+    );
   const parentByNodeId: Record<string, string> = {};
 
   nodes.forEach((current) => {
@@ -595,7 +638,7 @@ export function inferWebsite(
       .filter(
         (candidate) =>
           candidate.id !== current.id &&
-          canContain(candidate.type) &&
+          canContainChild(candidate, current) &&
           visuallyContains(
             primitiveByNodeId.get(candidate.id)!,
             primitiveByNodeId.get(current.id)!,
@@ -622,35 +665,192 @@ export function inferWebsite(
 
   Object.entries(layout.parentByPrimitiveId).forEach(([primitiveId, targetId]) => {
     const sourceId = `node-${primitiveId}`;
+    const source = nodes.get(sourceId);
     const target = nodes.get(targetId);
     if (
-      nodes.has(sourceId) &&
-      (targetId === 'page' || (target && canContain(target.type))) &&
+      source &&
+      (targetId === 'page' || (target && canContainChild(target, source))) &&
       !createsCycle(sourceId, targetId)
     ) {
       parentByNodeId[sourceId] = targetId;
     }
   });
 
+  const isManuallyTyped = (node: WebsiteNode) =>
+    Boolean(overrides[node.sourcePrimitiveIds[0]]);
+  const directChildren = (parentId: string) => [...nodes.values()].filter(
+    (node) => parentByNodeId[node.id] === parentId,
+  );
+  const isContainerPrimitive = (node: WebsiteNode) =>
+    primitiveByNodeId.get(node.id)?.type === 'container';
+  const similarlySized = (first: WebsiteNode, second: WebsiteNode) => {
+    const widthRatio =
+      Math.min(first.bounds.width, second.bounds.width) /
+      Math.max(0.0001, Math.max(first.bounds.width, second.bounds.width));
+    const firstHeight = visualHeight(first.bounds.height);
+    const secondHeight = visualHeight(second.bounds.height);
+    const heightRatio =
+      Math.min(firstHeight, secondHeight) /
+      Math.max(0.0001, Math.max(firstHeight, secondHeight));
+    return widthRatio >= 0.62 && heightRatio >= 0.62;
+  };
+  const strongestRepeatedGroup = (children: WebsiteNode[]) => children
+    .filter(isContainerPrimitive)
+    .map((anchor) => children.filter(
+      (candidate) => isContainerPrimitive(candidate) && similarlySized(anchor, candidate),
+    ))
+    .sort((first, second) => second.length - first.length)[0] ?? [];
+  const inferContextualControl = (node: WebsiteNode) => {
+    const height = visualHeight(node.bounds.height);
+    const aspect = node.bounds.width / Math.max(0.001, height);
+    const looksLikeButton = node.bounds.width < 0.27 && height < 0.13 && aspect > 1.5;
+    node.type = looksLikeButton ? 'button' : 'input';
+    node.content = looksLikeButton ? 'Submit' : 'Your details';
+    node.confidence = Math.max(node.confidence, 0.9);
+  };
+
+  // Establish semantic container roles before any sibling pairing or row ordering.
+  // Repeating the pass lets a newly inferred form or card grid inform its children.
+  for (let pass = 0; pass < 3; pass += 1) {
+    nodes.forEach((current) => {
+      if (isManuallyTyped(current) || !isContainerPrimitive(current)) return;
+      const children = directChildren(current.id);
+      const inputCount = children.filter((child) => child.type === 'input').length;
+      const buttonCount = children.filter((child) => child.type === 'button').length;
+      if (
+        current.type !== 'navbar' &&
+        current.type !== 'footer' &&
+        (inputCount >= 2 || (inputCount >= 1 && buttonCount >= 1))
+      ) {
+        current.type = 'form';
+        current.content = undefined;
+        current.confidence = Math.max(current.confidence, 0.94);
+        return;
+      }
+      if (current.type === 'navbar' || current.type === 'footer') return;
+
+      const repeatedGroup = strongestRepeatedGroup(children);
+      if (current.bounds.width > 0.35 && repeatedGroup.length >= 2) {
+        current.type = 'cardGrid';
+        current.content = undefined;
+        current.confidence = Math.max(current.confidence, 0.92);
+        return;
+      }
+
+      const childTypes = new Set(children.map((child) => child.type));
+      const heroContent =
+        childTypes.has('heading') &&
+        (childTypes.has('paragraph') || childTypes.has('image') || childTypes.has('button'));
+      if (
+        current.bounds.width > 0.55 &&
+        current.bounds.y < 0.48 &&
+        visualHeight(current.bounds.height) > 0.16 &&
+        heroContent
+      ) {
+        current.type = 'hero';
+        current.content = undefined;
+        current.confidence = Math.max(current.confidence, 0.92);
+        return;
+      }
+
+      const cardContentCount = children.filter((child) =>
+        ['image', 'heading', 'paragraph', 'button'].includes(child.type),
+      ).length;
+      if (
+        current.bounds.width <= 0.48 &&
+        visualHeight(current.bounds.height) >= 0.1 &&
+        visualHeight(current.bounds.height) <= 0.6 &&
+        cardContentCount >= 2
+      ) {
+        current.type = 'card';
+        current.content = current.content ?? 'Feature';
+        current.confidence = Math.max(current.confidence, 0.9);
+      }
+    });
+
+    nodes.forEach((current) => {
+      if (isManuallyTyped(current) || !isContainerPrimitive(current)) return;
+      const parent = nodes.get(parentByNodeId[current.id]);
+      if (parent?.type === 'form' && current.type !== 'form') {
+        inferContextualControl(current);
+      } else if (
+        parent?.type === 'cardGrid' &&
+        current.type !== 'form' &&
+        current.type !== 'cardGrid'
+      ) {
+        current.type = 'card';
+        current.content = current.content ?? 'Feature';
+        current.confidence = Math.max(current.confidence, 0.92);
+      }
+    });
+  }
+
+  const enforceSingleton = (type: 'navbar' | 'footer') => {
+    const candidates = [...nodes.values()].filter((node) => node.type === type);
+    if (candidates.length < 2) return;
+    candidates.sort((first, second) => {
+      const manualDifference = Number(isManuallyTyped(second)) - Number(isManuallyTyped(first));
+      if (manualDifference !== 0) return manualDifference;
+      if (type === 'navbar') {
+        return (
+          first.bounds.y - second.bounds.y ||
+          second.bounds.width - first.bounds.width ||
+          second.confidence - first.confidence
+        );
+      }
+      return (
+        second.bounds.y + second.bounds.height - (first.bounds.y + first.bounds.height) ||
+        second.bounds.width - first.bounds.width ||
+        second.confidence - first.confidence
+      );
+    });
+    candidates.slice(1).forEach((node) => {
+      node.type = 'section';
+      if (node.content === '© 2026 Your studio') node.content = undefined;
+      node.confidence = Math.min(node.confidence, 0.82);
+    });
+  };
+  enforceSingleton('navbar');
+  enforceSingleton('footer');
+
   nodes.forEach((current) => {
     const parent = nodes.get(parentByNodeId[current.id]);
-    const primitiveId = current.sourcePrimitiveIds[0];
-    const inferredContainerType = [
-      'navbar',
-      'hero',
-      'section',
-      'cardGrid',
-      'card',
-      'footer',
-    ].includes(current.type);
-    if (parent?.type !== 'form' || overrides[primitiveId] || !inferredContainerType) return;
+    if (
+      !parent ||
+      !['button', 'input', 'image'].includes(parent.type) ||
+      textNodeTypes.has(current.type)
+    ) {
+      return;
+    }
+    parentByNodeId[current.id] = parentByNodeId[parent.id] ?? 'page';
+  });
 
-    const height = visualHeight(current.bounds.height);
-    const looksLikeButton =
-      current.bounds.width < 0.27 && height < 0.13 && current.bounds.width / height > 1.5;
-    current.type = looksLikeButton ? 'button' : 'input';
-    current.content = looksLikeButton ? 'Submit' : 'Your details';
-    current.confidence = Math.max(current.confidence, 0.9);
+  // Buttons and inputs are semantic leaves. Text drawn inside becomes their
+  // label/placeholder and is removed as a separate layout node.
+  [...nodes.values()].forEach((current) => {
+    if (current.type !== 'button' && current.type !== 'input') return;
+    const textChildren = directChildren(current.id).filter(
+      (child) => textNodeTypes.has(child.type) && !isManuallyTyped(child),
+    );
+    if (textChildren.length === 0) return;
+    const labels = textChildren
+      .map((child) => {
+        const sourceId = child.sourcePrimitiveIds[0];
+        return customizations[sourceId]?.content ?? primitiveByNodeId.get(child.id)?.content;
+      })
+      .map((value) => value?.trim())
+      .filter((value): value is string => Boolean(value));
+    if (labels.length > 0) current.content = labels.join(' ');
+    current.sourcePrimitiveIds = [
+      ...new Set([
+        ...current.sourcePrimitiveIds,
+        ...textChildren.flatMap((child) => child.sourcePrimitiveIds),
+      ]),
+    ];
+    textChildren.forEach((child) => {
+      nodes.delete(child.id);
+      delete parentByNodeId[child.id];
+    });
   });
 
   nodes.forEach((current) => {
@@ -754,12 +954,21 @@ export function inferWebsite(
       const secondRoot = findGroup(secondId);
       if (firstRoot !== secondRoot) groupParent.set(secondRoot, firstRoot);
     };
+    const dividers = children.filter((child) => child.type === 'divider');
+    const separatedByDivider = (first: WebsiteNode, second: WebsiteNode) =>
+      dividers.some((divider) => dividerSeparates(first, second, divider));
 
     // Every candidate here is a direct child of the same parent. Each child ranks
     // all siblings once by overlap and once by distance, with equal rank weight.
     children.forEach((child) => {
+      if (child.type === 'divider') return;
       const comparisons = children
-        .filter((candidate) => candidate.id !== child.id)
+        .filter(
+          (candidate) =>
+            candidate.id !== child.id &&
+            candidate.type !== 'divider' &&
+            !separatedByDivider(child, candidate),
+        )
         .map((candidate) => ({
           candidate,
           relationship: rectangleRelationship(child.bounds, candidate.bounds),
@@ -823,6 +1032,38 @@ export function inferWebsite(
 
       if (winner.relationship.horizontal) joinGroups(child.id, winner.candidate.id);
     });
+
+    dividers
+      .filter((divider) => dividerOrientation(divider) === 'vertical')
+      .forEach((divider) => {
+        const dividerCenter = boundsCenter(divider.bounds);
+        const alignedSiblings = children.filter(
+          (candidate) =>
+            candidate.type !== 'divider' &&
+            axisOverlapRatio(
+              divider.bounds.y,
+              divider.bounds.height,
+              candidate.bounds.y,
+              candidate.bounds.height,
+            ) >= 0.2,
+        );
+        const left = alignedSiblings
+          .filter((candidate) => boundsCenter(candidate.bounds).x < dividerCenter.x)
+          .sort(
+            (first, second) =>
+              Math.abs(boundsCenter(first.bounds).x - dividerCenter.x) -
+              Math.abs(boundsCenter(second.bounds).x - dividerCenter.x),
+          )[0];
+        const right = alignedSiblings
+          .filter((candidate) => boundsCenter(candidate.bounds).x > dividerCenter.x)
+          .sort(
+            (first, second) =>
+              Math.abs(boundsCenter(first.bounds).x - dividerCenter.x) -
+              Math.abs(boundsCenter(second.bounds).x - dividerCenter.x),
+          )[0];
+        if (left) joinGroups(divider.id, left.id);
+        if (right) joinGroups(divider.id, right.id);
+      });
 
     const rowsByGroup = new Map<string, WebsiteNode[]>();
     spatialOrder.forEach((child) => {

@@ -97,9 +97,6 @@ const containerTypes = new Set<WebsiteNode['type']>([
   'section',
   'cardGrid',
   'card',
-  'button',
-  'input',
-  'image',
   'form',
   'footer',
 ]);
@@ -557,7 +554,7 @@ function OutputPanel({
   const activePage = pages.find((page) => page.id === activePageId);
   const selectedOverride = selectedStructureNode?.sourcePrimitiveIds
     .map((id) => overrides[id])
-    .find(Boolean);
+    .find((type) => type === selectedStructureNode.type);
   const selectedPrimitiveId = selectedStructureNode?.sourcePrimitiveIds[0];
   const currentParent = selectedStructureNode
     ? findParentNode(site.tree, selectedStructureNode.id)
