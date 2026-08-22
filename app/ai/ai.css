@@ -251,7 +251,7 @@ button:disabled { color: inherit; cursor: default; opacity: 1; }
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
-.canvas-wrap {
+.ai-canvas-wrap {
   position: relative;
   min-height: 0;
   overflow-x: hidden;

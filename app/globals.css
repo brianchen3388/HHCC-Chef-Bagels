@@ -252,7 +252,7 @@ button:disabled { color: inherit; cursor: default; opacity: 1; }
   overflow: hidden;
 }
 
-.canvas-wrap {
+.geometric-canvas-wrap {
   position: absolute;
   inset: 0;
   overflow-x: hidden;

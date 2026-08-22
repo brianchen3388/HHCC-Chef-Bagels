@@ -688,7 +688,7 @@ export default function DrawingWorkspace({
       </div>
 
       <div className="canvas-shell">
-        <div className="canvas-wrap">
+        <div className="geometric-canvas-wrap">
           <div className="canvas-page">
           {items.length === 0 && draftItem === null && (
             <div className="canvas-empty">

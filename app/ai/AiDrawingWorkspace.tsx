@@ -911,7 +911,7 @@ export default function DrawingWorkspace({
         </button>
       </div>
 
-      <div className="canvas-wrap">
+      <div className="ai-canvas-wrap">
         <div className="ai-canvas-page">
           {items.length === 0 && draftItem === null && (
             <div className="canvas-empty">

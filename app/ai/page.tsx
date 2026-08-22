@@ -544,7 +544,7 @@ export default function Home() {
                         if (!target?.closest) return;
                         const component = target.closest('[data-component-id]');
                         const componentId = component?.getAttribute('data-component-id');
-                        if (!componentId) return;
+                        if (!component || !componentId) return;
                         document.querySelector('[data-editor-selected]')?.removeAttribute('data-editor-selected');
                         component.setAttribute('data-editor-selected', 'true');
                         setSelectedComponentId(componentId);
