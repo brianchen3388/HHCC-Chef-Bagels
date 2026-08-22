@@ -31,3 +31,5 @@ reserved for the Sketchly brand rather than generated website content.
 ```bash
 npm run build
 ```
+
+## NOTE: GO INTO comp_material to find the project description.
