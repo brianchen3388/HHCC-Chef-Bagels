@@ -447,7 +447,7 @@ export default function Home() {
   }
 
   return (
-    <main className="app-shell">
+    <main className="app-shell generative-shell">
       <header className="topbar">
         <Link className="brand" href="/" aria-label="Sketchly home">
           <span className="brand-mark" aria-hidden="true" />
@@ -625,44 +625,30 @@ export default function Home() {
               generatedPage?.style.rationale ??
               'Kimi Vision compares each submission with the last one, then Kimi Code updates only the added, changed, or deleted components.'}
           </p>
-          <label className="style-prompt">
-            <span>Theme</span>
-            <input
-              disabled={isGenerating}
-              maxLength={300}
-              onChange={(event) => setStylePrompt(event.target.value)}
-              placeholder="e.g. warm editorial, dark sci-fi, playful pastel"
-              type="text"
-              value={stylePrompt}
-            />
-          </label>
+          <div className="inspector-controls">
+            <label className="style-prompt">
+              <span>Theme</span>
+              <input
+                disabled={isGenerating}
+                maxLength={300}
+                onChange={(event) => setStylePrompt(event.target.value)}
+                placeholder="e.g. warm editorial, dark sci-fi, playful pastel"
+                type="text"
+                value={stylePrompt}
+              />
+            </label>
+            {selectedComponentId && (
+              <label className="ai-text-editor">
+                <span>Edit text</span>
+                <input
+                  onChange={(event) => handleGeneratedTextChange(event.target.value)}
+                  type="text"
+                  value={selectedText}
+                />
+              </label>
+            )}
+          </div>
         </div>
-        {selectedComponentId ? (
-          <label className="ai-text-editor">
-            <span>Edit selected text</span>
-            <input
-              onChange={(event) => handleGeneratedTextChange(event.target.value)}
-              type="text"
-              value={selectedText}
-            />
-          </label>
-        ) : generatedPage ? (
-          <div
-            className="style-characteristics"
-            aria-label="Generated style characteristics"
-          >
-            {generatedPage.style.characteristics.slice(0, 4).map((item) => (
-              <span key={item}>{item}</span>
-            ))}
-            <small>{generatedPage.style.palette.join(' · ')}</small>
-          </div>
-        ) : (
-          <div className="pipeline-steps" aria-label="Generation pipeline">
-            <span className={scene ? 'complete' : ''}>1 · JSON</span>
-            <span aria-hidden="true">→</span>
-            <span className={generatedPage ? 'complete' : ''}>2 · HTML/CSS</span>
-          </div>
-        )}
       </aside>
     </main>
   );

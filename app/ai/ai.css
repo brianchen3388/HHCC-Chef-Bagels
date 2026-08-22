@@ -567,8 +567,16 @@ button:disabled { color: inherit; cursor: default; opacity: 1; }
   white-space: nowrap;
 }
 
+.inspector-controls {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 12px;
+}
+
 .style-prompt {
   display: flex;
+  flex: 1 1 360px;
   min-width: 0;
   align-items: center;
   gap: 8px;
@@ -600,47 +608,12 @@ button:disabled { color: inherit; cursor: default; opacity: 1; }
   outline: 2px solid var(--accent-soft);
 }
 
-.pipeline-steps {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  white-space: nowrap;
-  color: #8a968e;
-  font-size: 10px;
-  font-weight: 650;
-}
-
-.pipeline-steps .complete { color: var(--accent); }
-
-.style-characteristics {
-  display: flex;
-  max-width: 410px;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 5px;
-}
-
-.style-characteristics span {
-  border: 1px solid #cfe0d4;
-  border-radius: 999px;
-  background: var(--accent-soft);
-  padding: 4px 7px;
-  color: var(--accent);
-  font-size: 9px;
-  font-weight: 650;
-}
-
-.style-characteristics small {
-  width: 100%;
-  color: #89958d;
-  font-size: 8px;
-  text-align: right;
-}
-
 .ai-text-editor {
-  display: grid;
-  min-width: 220px;
-  gap: 5px;
+  display: flex;
+  flex: 0 1 320px;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
   color: #809087;
   font-size: 9px;
   font-weight: 750;
@@ -649,6 +622,7 @@ button:disabled { color: inherit; cursor: default; opacity: 1; }
 }
 
 .ai-text-editor input {
+  width: 100%;
   min-width: 0;
   height: 30px;
   border: 1px solid #c9d2cb;
@@ -686,8 +660,10 @@ button:disabled { color: inherit; cursor: default; opacity: 1; }
   .panel { height: 560px; min-height: 560px; }
   .inspector { grid-template-columns: 1fr auto; gap: 12px; }
   .inspector > div:first-child,
-  .inspector-copy > p,
-  .style-characteristics { display: none; }
+  .inspector-copy > p { display: none; }
+  .inspector-controls { flex-wrap: wrap; }
+  .style-prompt,
+  .ai-text-editor { flex-basis: 100%; }
   .panel-meta { display: none; }
   .browser-frame.preview-tablet,
   .browser-frame.preview-mobile { width: 100%; }

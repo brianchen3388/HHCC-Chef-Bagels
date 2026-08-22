@@ -336,25 +336,62 @@
 .realtime-inspector-copy > p,
 .style-prompt,
 .ai-text-editor,
-.pipeline-steps,
 .realtime-theme-control label span {
   color: white;
 }
 
-.inspector .eyebrow,
-.pipeline-steps .complete {
+.inspector .eyebrow {
   color: var(--accent);
 }
 
-.style-characteristics span {
-  border-color: var(--accent);
-  background: var(--accent);
-  color: #0d0d0d;
-}
-
-.style-characteristics small,
 .panel-meta {
   color: #817873;
+}
+
+/* Generative mode needs its preview and controls to use the full HUD space. */
+.generative-shell .preview-stage {
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  padding: 16px;
+}
+
+.generative-shell .browser-frame {
+  width: 100%;
+  max-width: none;
+  height: auto;
+  min-height: 0;
+  flex: 1 1 auto;
+}
+
+.generative-shell .browser-frame.preview-tablet {
+  width: min(78%, 620px);
+  flex: 0 1 620px;
+}
+
+.generative-shell .browser-frame.preview-mobile {
+  width: min(52%, 390px);
+  flex: 0 1 390px;
+}
+
+.generative-shell .inspector {
+  grid-template-columns: minmax(180px, 0.34fr) minmax(0, 1fr);
+  gap: 24px;
+}
+
+.generative-shell .inspector-copy,
+.generative-shell .inspector-controls,
+.generative-shell .style-prompt,
+.generative-shell .ai-text-editor {
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.generative-shell .style-prompt input,
+.generative-shell .ai-text-editor input {
+  flex: 1 1 auto;
+  width: auto;
+  max-width: 100%;
 }
 
 /* Keep the locally rendered geometric website on its original design system. */
@@ -478,6 +515,10 @@
   .inspector {
     margin-top: 8px;
   }
+
+  .generative-shell .inspector {
+    grid-template-columns: minmax(150px, 0.3fr) minmax(0, 1fr);
+  }
 }
 
 @media (max-width: 620px) {
@@ -497,5 +538,23 @@
 
   .topbar {
     padding: 0 12px;
+  }
+
+  .generative-shell .inspector {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .generative-shell .inspector > div:first-child {
+    display: none;
+  }
+
+  .generative-shell .preview-stage {
+    padding: 12px;
+  }
+
+  .generative-shell .browser-frame.preview-tablet,
+  .generative-shell .browser-frame.preview-mobile {
+    width: 100%;
+    flex-basis: 100%;
   }
 }
