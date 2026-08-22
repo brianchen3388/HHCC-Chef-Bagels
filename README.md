@@ -9,9 +9,13 @@ The AI editor recognizes complete or changed sketches, generates themed HTML/CSS
 ## Run locally
 
 ```bash
-npm install
+npm ci
 npm run dev
 ```
+
+`npm ci` downloads the exact dependency versions recorded in
+`package-lock.json`. See `dependencies.txt` for a readable list of the runtime
+and development packages.
 
 Open `http://localhost:3000`, then choose AI API or Geometric on the homepage.
 
