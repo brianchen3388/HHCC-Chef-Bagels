@@ -600,6 +600,31 @@ export function inferWebsite(
     const rows: WebsiteNode[][] = [];
 
     spatialOrder.forEach((child) => {
+      const childPrimitiveId = child.sourcePrimitiveIds[0];
+      const hasKimiPairing = Boolean(
+        childPrimitiveId &&
+        layout.pairWithByPrimitiveId &&
+        Object.prototype.hasOwnProperty.call(layout.pairWithByPrimitiveId, childPrimitiveId),
+      );
+      const kimiPartnerId = childPrimitiveId
+        ? layout.pairWithByPrimitiveId?.[childPrimitiveId]
+        : undefined;
+
+      if (hasKimiPairing && kimiPartnerId === null) {
+        rows.push([child]);
+        return;
+      }
+
+      if (kimiPartnerId) {
+        const pairedRow = rows.find((row) =>
+          row.some((candidate) => candidate.sourcePrimitiveIds.includes(kimiPartnerId)),
+        );
+        if (pairedRow) {
+          pairedRow.push(child);
+          return;
+        }
+      }
+
       const childCenter = boundsCenter(child.bounds);
       let nearestRow: WebsiteNode[] | null = null;
       let nearestPairIsHorizontal = false;

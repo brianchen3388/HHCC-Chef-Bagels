@@ -21,6 +21,7 @@ type KimiJsonRequest = {
   maxTokens: number;
   retryMaxTokens?: number;
   reasoningEffort?: 'low' | 'high' | 'max';
+  timeoutMs?: number;
 };
 
 type KimiChatResponse = {
@@ -133,9 +134,13 @@ async function requestKimiJsonAttempt({
   schema,
   maxTokens,
   reasoningEffort,
+  timeoutMs = 120000,
 }: Omit<KimiJsonRequest, 'retryMaxTokens'>) {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 120000);
+  const timeout = setTimeout(
+    () => controller.abort(),
+    Math.min(120000, Math.max(3000, timeoutMs)),
+  );
 
   try {
     const response = await fetch(`${getBaseUrl()}/chat/completions`, {
@@ -233,6 +238,7 @@ export async function requestKimiJson({
   maxTokens,
   retryMaxTokens,
   reasoningEffort,
+  timeoutMs,
 }: KimiJsonRequest) {
   const retryableCodes = new Set([
     'KIMI_INVALID_JSON',
@@ -248,6 +254,7 @@ export async function requestKimiJson({
       schema,
       maxTokens,
       reasoningEffort,
+      timeoutMs,
     });
   } catch (error) {
     if (!(error instanceof KimiRequestError) || !retryableCodes.has(error.code)) {
@@ -261,6 +268,7 @@ export async function requestKimiJson({
       schema,
       maxTokens: Math.max(maxTokens, retryMaxTokens ?? maxTokens),
       reasoningEffort,
+      timeoutMs,
     });
   }
 }

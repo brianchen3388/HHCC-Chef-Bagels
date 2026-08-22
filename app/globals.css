@@ -85,6 +85,16 @@ button:disabled { color: inherit; cursor: default; opacity: 1; }
   box-shadow: 0 0 0 3px #f7ead3;
 }
 
+.status.styling .status-dot {
+  background: #7d6fe8;
+  box-shadow: 0 0 0 3px #e9e5ff;
+}
+
+.status.fallback .status-dot {
+  background: #d7952e;
+  box-shadow: 0 0 0 3px #f7ead3;
+}
+
 .preview-sizes {
   display: flex;
   justify-self: end;
@@ -802,6 +812,7 @@ p.variant-alternate { border-left: 3px solid #246b47; background: #f0f6f2; paddi
 .code-stage { display: grid; grid-template-rows: auto minmax(0, 1fr); padding: 0; background: #17211b; }
 .code-toolbar { display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #344039; padding: 10px 13px; }
 .code-toolbar div { display: flex; gap: 4px; }
+.code-toolbar .css-source-badge { align-self: center; margin-left: 6px; color: #9fada3; font-size: 9px; }
 .code-toolbar button { border: 1px solid #435047; border-radius: 6px; background: transparent; color: #aebbb2; padding: 6px 9px; font-size: 9px; }
 .code-toolbar button.active { border-color: #83aa91; background: #2c3d32; color: white; }
 .code-toolbar button:disabled { opacity: 0.4; }

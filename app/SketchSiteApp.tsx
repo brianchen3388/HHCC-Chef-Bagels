@@ -24,11 +24,12 @@ import type {
 } from './sketch/model';
 import { CANVAS_PAGE_RATIO } from './sketch/model';
 import { inferWebsite, recognizeCanvas } from './sketch/recognition';
+import { generateKimiCss, refineRecognitionWithKimi } from './sketch/kimi-assist';
 
 type PreviewSize = 'desktop' | 'tablet' | 'mobile';
 type OutputView = 'preview' | 'structure' | 'code';
 type CodeView = 'react' | 'css';
-type RecognitionStatus = 'idle' | 'analyzing' | 'ready';
+type RecognitionStatus = 'idle' | 'analyzing' | 'styling' | 'ready' | 'fallback';
 
 type ProjectPage = {
   id: string;
@@ -37,13 +38,20 @@ type ProjectPage = {
   canvasItems: CanvasItem[];
   primitives: RecognizedPrimitive[];
   overrides: StructureOverrides;
+  aiOverrides: StructureOverrides;
   layout: StructureLayout;
   customizations: ElementCustomizations;
+  kimiCss: string | null;
 };
 
 const emptyLayout = (): StructureLayout => ({
   parentByPrimitiveId: {},
   orderByParentId: {},
+});
+
+const withoutKimiPairing = (layout: StructureLayout): StructureLayout => ({
+  parentByPrimitiveId: layout.parentByPrimitiveId,
+  orderByParentId: layout.orderByParentId,
 });
 
 const createProjectPage = (index: number): ProjectPage => ({
@@ -53,8 +61,10 @@ const createProjectPage = (index: number): ProjectPage => ({
   canvasItems: [],
   primitives: [],
   overrides: {},
+  aiOverrides: {},
   layout: emptyLayout(),
   customizations: {},
+  kimiCss: null,
 });
 
 const initialPage = createProjectPage(1);
@@ -109,6 +119,13 @@ function generatedNodeClass(node: WebsiteNode, base: string, selectedId: string 
   ].filter(Boolean).join(' ');
 }
 
+function scopeGeneratedCss(css: string) {
+  const scopedSelectors = css
+    .replaceAll(':root', '&')
+    .replace(/(^|[,\s>+~])body\b(?=\s*[{,:.#>+~\[])/gm, '$1&');
+  return `.generated-site-preview {\n${scopedSelectors}\n}`;
+}
+
 function GeneratedRows({
   node,
   insideForm,
@@ -129,10 +146,10 @@ function GeneratedRows({
   if (rows.length === 0) return null;
 
   return (
-    <div className="generated-mixed-layout">
+    <div className="generated-mixed-layout mixed-layout">
       {rows.map((row, index) => (
         <div
-          className={row.length > 1 ? 'generated-spatial-row' : 'generated-spatial-row single'}
+          className={row.length > 1 ? 'generated-spatial-row spatial-row' : 'generated-spatial-row spatial-row single'}
           key={`${node.id}-row-${index}`}
         >
           {row.map((childId) => {
@@ -204,26 +221,26 @@ function GeneratedNode({
 
   if (node.type === 'navbar') {
     return (
-      <nav className={generatedNodeClass(node, 'generated-nav', selectedId)} onClick={selectNode}>
-        <strong onClick={selectNode} style={node.fontSize ? { fontSize: `${node.fontSize}px` } : undefined}>{node.content ?? 'Studio'}</strong>
-        <div className="generated-nav-content">{groupedChildren}</div>
+      <nav className={generatedNodeClass(node, 'generated-nav site-nav', selectedId)} onClick={selectNode}>
+        <strong className="brand" onClick={selectNode} style={node.fontSize ? { fontSize: `${node.fontSize}px` } : undefined}>{node.content ?? 'Studio'}</strong>
+        <div className="generated-nav-content nav-content">{groupedChildren}</div>
       </nav>
     );
   }
-  if (node.type === 'hero') return <section className={generatedNodeClass(node, 'generated-hero', selectedId)} onClick={selectNode}>{groupedChildren}</section>;
-  if (node.type === 'section') return <section className={generatedNodeClass(node, 'generated-section', selectedId)} onClick={selectNode}>{groupedChildren}</section>;
+  if (node.type === 'hero') return <section className={generatedNodeClass(node, 'generated-hero hero', selectedId)} onClick={selectNode}>{groupedChildren}</section>;
+  if (node.type === 'section') return <section className={generatedNodeClass(node, 'generated-section section', selectedId)} onClick={selectNode}>{groupedChildren}</section>;
   if (node.type === 'cardGrid') {
-    return <section className={generatedNodeClass(node, 'generated-features', selectedId)} onClick={selectNode}><div className="generated-card-grid">{directChildren}</div></section>;
+    return <section className={generatedNodeClass(node, 'generated-features features', selectedId)} onClick={selectNode}><div className="generated-card-grid card-grid">{directChildren}</div></section>;
   }
   if (node.type === 'card') {
     return (
-      <article className={generatedNodeClass(node, 'generated-card', selectedId)} onClick={selectNode}>
+      <article className={generatedNodeClass(node, 'generated-card card', selectedId)} onClick={selectNode}>
         {node.children.length > 0 ? groupedChildren : <><h2>{node.content ?? 'Feature'}</h2><p>Generated from your wireframe.</p></>}
       </article>
     );
   }
-  if (node.type === 'heading') return <h1 {...editableProps}>{node.content ?? 'Your headline'}</h1>;
-  if (node.type === 'paragraph') return <p {...editableProps}>{node.content ?? 'Your supporting copy.'}</p>;
+  if (node.type === 'heading') return <h1 {...editableProps} className={`${editableProps.className} site-heading`}>{node.content ?? 'Your headline'}</h1>;
+  if (node.type === 'paragraph') return <p {...editableProps} className={`${editableProps.className} site-paragraph`}>{node.content ?? 'Your supporting copy.'}</p>;
   const nestedLabel = node.children
     .map((child) => child.content)
     .filter(Boolean)
@@ -232,7 +249,7 @@ function GeneratedNode({
     return (
       <div
         aria-label={node.imageDataUrl ? 'Imported image' : 'Generated visual placeholder'}
-        className={generatedNodeClass(node, node.imageDataUrl ? 'generated-image imported' : 'generated-image', selectedId)}
+        className={generatedNodeClass(node, node.imageDataUrl ? 'generated-image site-image imported' : 'generated-image site-image', selectedId)}
         onClick={(event) => {
           selectNode(event);
           onImageSelect(node);
@@ -248,7 +265,7 @@ function GeneratedNode({
     const label = node.content || nestedLabel || 'Get started';
     return (
       <button
-        className={generatedNodeClass(node, 'generated-button generated-editable', selectedId)}
+        className={generatedNodeClass(node, 'generated-button generated-editable primary-button', selectedId)}
         onClick={(event) => {
           event.stopPropagation();
           if (node.linkPageId && selectedId === node.id) {
@@ -266,28 +283,30 @@ function GeneratedNode({
     );
   }
   if (node.type === 'input') {
-    return <label className={generatedNodeClass(node, 'generated-field', selectedId)} onClick={selectNode}>{nestedLabel || node.content || 'Your details'}<input placeholder={nestedLabel || node.content} /></label>;
+    return <label className={generatedNodeClass(node, 'generated-field field', selectedId)} onClick={selectNode}>{nestedLabel || node.content || 'Your details'}<input placeholder={nestedLabel || node.content} /></label>;
   }
   if (node.type === 'form') {
-    return <form className={generatedNodeClass(node, 'generated-form', selectedId)} onClick={selectNode} onSubmit={(event) => event.preventDefault()}>{groupedChildren}</form>;
+    return <form className={generatedNodeClass(node, 'generated-form contact-form', selectedId)} onClick={selectNode} onSubmit={(event) => event.preventDefault()}>{groupedChildren}</form>;
   }
   if (node.type === 'divider') {
     const orientation = node.orientation ?? (
       node.bounds.width >= node.bounds.height * CANVAS_PAGE_RATIO ? 'horizontal' : 'vertical'
     );
-    return <div aria-orientation={orientation} className={generatedNodeClass(node, `generated-divider ${orientation}`, selectedId)} onClick={selectNode} role="separator" />;
+    return <div aria-orientation={orientation} className={generatedNodeClass(node, `generated-divider divider divider-${orientation} ${orientation}`, selectedId)} onClick={selectNode} role="separator" />;
   }
-  if (node.type === 'footer') return <footer className={generatedNodeClass(node, 'generated-footer', selectedId)} onClick={selectNode}>{node.children.length > 0 ? groupedChildren : node.content}</footer>;
+  if (node.type === 'footer') return <footer className={generatedNodeClass(node, 'generated-footer site-footer', selectedId)} onClick={selectNode}>{node.children.length > 0 ? groupedChildren : node.content}</footer>;
   return null;
 }
 
 function GeneratedPreview({
+  customCss,
   onImageSelect,
   onSelect,
   onNavigate,
   selectedId,
   site,
 }: {
+  customCss: string | null;
   onImageSelect: (node: WebsiteNode) => void;
   onSelect: (node: WebsiteNode) => void;
   onNavigate: (pageId: string) => void;
@@ -311,7 +330,8 @@ function GeneratedPreview({
 
   return (
     <div className="generated-site-preview">
-      <div className="generated-page-layout">
+      {customCss && <style>{scopeGeneratedCss(customCss)}</style>}
+      <div className="generated-page-layout site">
         <GeneratedRows
           insideForm={false}
           node={site.tree}
@@ -416,6 +436,8 @@ type OutputPanelProps = {
   codeView: CodeView;
   copiedLabel: string;
   cssCode: string;
+  cssLabel: string;
+  customCss: string | null;
   outputView: OutputView;
   previewSize: PreviewSize;
   primitives: RecognizedPrimitive[];
@@ -440,6 +462,8 @@ function OutputPanel({
   codeView,
   copiedLabel,
   cssCode,
+  cssLabel,
+  customCss,
   onCopy,
   onCreateLinkedPage,
   onElementEdit,
@@ -637,6 +661,7 @@ function OutputPanel({
                 <div>your-site.local/{activePage?.slug ?? ''}</div>
               </div>
               <GeneratedPreview
+                customCss={customCss}
                 onImageSelect={choosePreviewImage}
                 onNavigate={onPageChange}
                 onSelect={(node) => setSelectedPreviewSourceId(node.sourcePrimitiveIds[0] ?? null)}
@@ -751,6 +776,7 @@ function OutputPanel({
               >
                 CSS
               </button>
+              {codeView === 'css' && <span className="css-source-badge">{cssLabel}</span>}
             </div>
             <button disabled={site.tree.children.length === 0} onClick={onCopy} type="button">
               {copiedLabel}
@@ -782,12 +808,91 @@ export default function SketchSiteApp() {
   const [codeView, setCodeView] = useState<CodeView>('react');
   const [copiedLabel, setCopiedLabel] = useState('Copy code');
   const recognitionRevision = useRef(0);
+  const recognitionAbort = useRef<AbortController | null>(null);
   const activePage = pages.find((page) => page.id === activePageId) ?? pages[0];
+  const originalCss = useMemo(() => generateCss(), []);
 
   function updateActivePage(updater: (page: ProjectPage) => ProjectPage) {
     setPages((current) => current.map((page) => (
       page.id === activePageId ? updater(page) : page
     )));
+  }
+
+  async function identifyPage(pageSnapshot: ProjectPage, revision: number) {
+    recognitionAbort.current?.abort();
+    const controller = new AbortController();
+    recognitionAbort.current = controller;
+    const primitives = recognizeCanvas(pageSnapshot.canvasItems);
+    const localLayout = withoutKimiPairing(pageSnapshot.layout);
+    const baselineSite = inferWebsite(
+      primitives,
+      pageSnapshot.overrides,
+      localLayout,
+      pageSnapshot.customizations,
+    );
+
+    let aiOverrides: StructureOverrides = {};
+    let pairWithByPrimitiveId: Record<string, string | null> = {};
+    let fallbackUsed = false;
+    let kimiAvailable = true;
+
+    try {
+      const refinement = await refineRecognitionWithKimi(
+        baselineSite,
+        primitives,
+        pageSnapshot.overrides,
+        (nextAiOverrides) => inferWebsite(
+          primitives,
+          { ...nextAiOverrides, ...pageSnapshot.overrides },
+          localLayout,
+          pageSnapshot.customizations,
+        ),
+        controller.signal,
+      );
+      aiOverrides = refinement.aiOverrides;
+      pairWithByPrimitiveId = refinement.pairWithByPrimitiveId;
+      fallbackUsed = refinement.fallbackUsed;
+      kimiAvailable = refinement.kimiAvailable;
+    } catch {
+      if (controller.signal.aborted || recognitionRevision.current !== revision) return;
+      fallbackUsed = true;
+      kimiAvailable = false;
+    }
+
+    if (controller.signal.aborted || recognitionRevision.current !== revision) return;
+    const finalLayout: StructureLayout = {
+      ...localLayout,
+      pairWithByPrimitiveId,
+    };
+    const finalSite = inferWebsite(
+      primitives,
+      { ...aiOverrides, ...pageSnapshot.overrides },
+      finalLayout,
+      pageSnapshot.customizations,
+    );
+    setPages((current) => current.map((page) => (
+      page.id === pageSnapshot.id
+        ? { ...page, primitives, aiOverrides, layout: { ...page.layout, pairWithByPrimitiveId }, kimiCss: null }
+        : page
+    )));
+
+    if (!kimiAvailable) {
+      setRecognitionStatus('fallback');
+      return;
+    }
+
+    setRecognitionStatus('styling');
+    try {
+      const nextCss = await generateKimiCss(finalSite, originalCss, controller.signal);
+      if (controller.signal.aborted || recognitionRevision.current !== revision) return;
+      setPages((current) => current.map((page) => (
+        page.id === pageSnapshot.id ? { ...page, kimiCss: nextCss } : page
+      )));
+      setRecognitionStatus(fallbackUsed ? 'fallback' : 'ready');
+    } catch {
+      if (controller.signal.aborted || recognitionRevision.current !== revision) return;
+      setRecognitionStatus('fallback');
+    }
   }
 
   useEffect(() => {
@@ -798,17 +903,12 @@ export default function SketchSiteApp() {
       return;
     }
 
-    const timer = window.setTimeout(() => {
-      const result = recognizeCanvas(activePage.canvasItems);
-      if (recognitionRevision.current === revision) {
-        setPages((current) => current.map((page) => (
-          page.id === activePageId ? { ...page, primitives: result } : page
-        )));
-        setRecognitionStatus('ready');
-      }
-    }, 500);
+    const pageSnapshot = activePage;
+    const timer = window.setTimeout(() => void identifyPage(pageSnapshot, revision), 500);
 
     return () => window.clearTimeout(timer);
+    // Recognition should restart only for a canvas or page change, not for its own result updates.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activePage.canvasItems, activePageId]);
 
   const generatedPages = useMemo<GeneratedProjectPage[]>(
@@ -816,25 +916,32 @@ export default function SketchSiteApp() {
       id: page.id,
       name: page.name,
       slug: page.slug,
-      site: inferWebsite(page.primitives, page.overrides, page.layout, page.customizations),
+      site: inferWebsite(
+        page.primitives,
+        { ...page.aiOverrides, ...page.overrides },
+        page.layout,
+        page.customizations,
+      ),
     })),
     [pages],
   );
   const site = generatedPages.find((page) => page.id === activePageId)?.site ?? generatedPages[0].site;
   const reactCode = useMemo(() => generateReact(generatedPages), [generatedPages]);
-  const cssCode = useMemo(() => generateCss(), []);
+  const cssCode = activePage.kimiCss ?? originalCss;
+  const cssLabel = activePage.kimiCss ? 'Kimi CSS active' : 'Original CSS';
 
   function handleCanvasItemsChange(nextItems: CanvasItem[]) {
     updateActivePage((page) => ({
       ...page,
       canvasItems: nextItems,
       ...(nextItems.length === 0
-        ? { primitives: [], overrides: {}, layout: emptyLayout(), customizations: {} }
-        : {}),
+        ? { primitives: [], overrides: {}, aiOverrides: {}, layout: emptyLayout(), customizations: {}, kimiCss: null }
+        : { aiOverrides: {}, layout: withoutKimiPairing(page.layout), kimiCss: null }),
     }));
     setRecognitionStatus(nextItems.length > 0 ? 'analyzing' : 'idle');
     if (nextItems.length === 0) {
       recognitionRevision.current += 1;
+      recognitionAbort.current?.abort();
     }
   }
 
@@ -842,6 +949,7 @@ export default function SketchSiteApp() {
     const page = pages.find((candidate) => candidate.id === pageId);
     if (!page) return;
     recognitionRevision.current += 1;
+    recognitionAbort.current?.abort();
     setActivePageId(pageId);
     setRecognitionStatus(page.canvasItems.length === 0 ? 'idle' : page.primitives.length > 0 ? 'ready' : 'analyzing');
   }
@@ -871,6 +979,7 @@ export default function SketchSiteApp() {
       nextPage,
     ]);
     recognitionRevision.current += 1;
+    recognitionAbort.current?.abort();
     setActivePageId(nextPage.id);
     setRecognitionStatus('idle');
   }
@@ -924,9 +1033,15 @@ export default function SketchSiteApp() {
   }
 
   function recognizeNow() {
-    recognitionRevision.current += 1;
-    updateActivePage((page) => ({ ...page, primitives: recognizeCanvas(page.canvasItems) }));
-    setRecognitionStatus(activePage.canvasItems.length > 0 ? 'ready' : 'idle');
+    const revision = recognitionRevision.current + 1;
+    recognitionRevision.current = revision;
+    if (activePage.canvasItems.length === 0) {
+      setRecognitionStatus('idle');
+      return;
+    }
+    setRecognitionStatus('analyzing');
+    updateActivePage((page) => ({ ...page, aiOverrides: {}, layout: withoutKimiPairing(page.layout), kimiCss: null }));
+    void identifyPage(activePage, revision);
   }
 
   async function copyCode() {
@@ -955,6 +1070,10 @@ export default function SketchSiteApp() {
           <span className="status-dot" aria-hidden="true" />
           {recognitionStatus === 'analyzing'
             ? 'Analyzing sketch'
+            : recognitionStatus === 'styling'
+              ? 'Building Kimi CSS'
+              : recognitionStatus === 'fallback'
+                ? 'Ready · local fallback used'
             : recognitionStatus === 'ready'
               ? 'Recognition ready'
               : 'Canvas ready'}
@@ -989,6 +1108,8 @@ export default function SketchSiteApp() {
           codeView={codeView}
           copiedLabel={copiedLabel}
           cssCode={cssCode}
+          cssLabel={cssLabel}
+          customCss={activePage.kimiCss}
           onCopy={copyCode}
           onCreateLinkedPage={handleCreateLinkedPage}
           onElementEdit={handleElementEdit}

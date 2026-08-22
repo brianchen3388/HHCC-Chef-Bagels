@@ -88,6 +88,7 @@ export type StructureOverrides = Record<string, StructureOverrideType>;
 export type StructureLayout = {
   parentByPrimitiveId: Record<string, string>;
   orderByParentId: Record<string, string[]>;
+  pairWithByPrimitiveId?: Record<string, string | null>;
 };
 
 export type ElementCustomization = {
