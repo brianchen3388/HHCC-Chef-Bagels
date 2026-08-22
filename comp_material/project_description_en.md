@@ -2,11 +2,22 @@
 
 ## 1. Project Overview
 
-Sketchly is a browser-based prototype that converts a digital wireframe into an editable, previewable, and exportable static website. The current `main` branch provides two independent conversion pipelines over a shared drawing interface: Generative Mode uses Kimi models for semantic recognition and HTML/CSS generation, while Realtime Mode uses local geometry and deterministic code generation. Both modes preserve the wireframe's component hierarchy and relative spatial relationships while allowing visual refinement.
+Sketchly is a browser-based prototype that converts a digital wireframe into an exportable website. The current `main` branch provides two independent conversion pipelines over a shared drawing interface: Generative Mode uses Kimi models for semantic recognition and HTML/CSS generation, while Realtime Mode uses local geometry and deterministic code generation. Both modes preserve the wireframe's component hierarchy and relative spatial relationships while allowing visual refinement.
 
 ## 2. Problem, Users, and Value
 
+Website creation is divided across sketching, interface design, and coding. A non-technical user may understand exactly what a page should contain, but lack the vocabulary or technical ability to build it. As a result, they may ask Artificial Intelligence (AI) models to help them generate webpages; however, generation from AI directly through words may result in the loss of the original intent, hierarchy, and spatial relationships. 
+
+Existing AI website generators also contain another problem: they often operate with little transparency. Users submit a prompt or image but cannot easily see which components were recognized by the system, how confident the program was, or why the final structure/webpage differs from the original sketch. 
+ 
+Images for sketches also have to be uploaded one by one, which is inefficient. If users want to change their design, they have to change the image and re-upload it again, greatly reducing productivity, let alone AI may misinterpret designs again.
+
+
 ## 3. Solution and Technical Design Decisions
+
+The platform provides two complementary workflows–Generative Mode and Realtime Mode.
+The Generative Mode converts the canvas into an image and uses Kimi Vision to recognize and interpret interface components, their content, positions, and relationships. 
+
 
 ### 3.1 Two conversion pipelines
 
@@ -25,9 +36,26 @@ Drawing operations are stored as structured items rather than only as pixels. It
 
 Both pipelines separate structural interpretation from visual styling. Component identity, hierarchy, order, and relative placement are established first. Styling can then change colors, typography, borders, shadows, margins, padding, and component size without reversing relationships such as left/right placement or moving sidebar children above the main content.
 
-## 4. Implemented Product Modules
 
-### 4.1 Shared workspace
+## 4. Target Users and Scenarios
+
+Sketchly is intended for people who can communicate an interface visually but may not possess frontend-development skills to turn their sketches/designs into webpages.
+
+### 4.1 Primary Target Users
+- **Students** learning web design or programming
+- **Teachers** who want to design interactable websites
+- **Entrepreneurs and small organizations** testing website ideas
+- **Designers** rapidly exploring alternative layouts
+- **Developers** converting rough sketches into initial prototypes
+- **Nonprofits and community groups** with limited technical capacities/resources
+
+### 4.2 Typical Scenarios
+Typical scenarios include creating a prototype during a meeting, testing several homepage structures, or producing an early client demonstration.
+**Generative Mode** is most suitable when the user wants an expressive and visually polished interpretation. **Realtime Mode** is more appropriate when speed predictability, explainability, or structural control is of greater priority. 
+
+## 5. Implemented Product Modules
+
+### 5.1 Shared workspace
 
 - Freehand pen, straight line, frame, text, selection/movement, and eraser tools.
 - Undo, redo, clear, and canvas navigation controls.
@@ -36,7 +64,7 @@ Both pipelines separate structural interpretation from visual styling. Component
 - Direct text editing through stable component identifiers.
 - ZIP export with static pages, CSS, bundled font files, licence information, and a README.
 
-### 4.2 Generative Mode
+### 5.2 Generative Mode
 
 - Exports the digital canvas as a PNG data URL.
 - Recognizes a complete component scene on the first generation.
@@ -46,7 +74,7 @@ Both pipelines separate structural interpretation from visual styling. Component
 - Preserves the previous page when no structural or style change is detected.
 - Persists the wireframe and generated output in browser local storage.
 
-### 4.3 Realtime Mode
+### 5.3 Realtime Mode
 
 - Recognizes components locally without requiring an API call.
 - Updates the inferred structure as the canvas changes.
@@ -55,9 +83,9 @@ Both pipelines separate structural interpretation from visual styling. Component
 - Generates both React source and static HTML/CSS.
 - Can optionally ask Kimi to redesign only the visual CSS.
 
-## 5. System Architecture and Data Flow
+## 6. System Architecture and Data Flow
 
-### 5.1 Generative Mode
+### 6.1 Generative Mode
 
 ```text
 Canvas items
@@ -72,7 +100,7 @@ Canvas items
     -> editing / persistence / ZIP export
 ```
 
-### 5.2 Realtime Mode
+### 6.2 Realtime Mode
 
 ```text
 Canvas items
@@ -85,7 +113,7 @@ Canvas items
     -> preview / editing / multi-page ZIP export
 ```
 
-### 5.3 Implementation map
+### 6.3 Implementation map
 
 | Area | Current implementation |
 | --- | --- |
@@ -100,25 +128,25 @@ Canvas items
 | Optional CSS assistance | `app/sketch/kimi-assist.ts` and `app/api/kimi-assist/route.ts` |
 | ZIP export | `app/export-html.ts` and mode-specific export integration |
 
-## 6. Core Technical Implementation
+## 7. Core Technical Implementation
 
-### 6.1 Strict AI data contracts
+### 7.1 Strict AI data contracts
 
 Generative recognition does not pass an unstructured paragraph into the code model. Kimi Vision must return a `ComponentScene` or `ComponentDelta` matching a strict JSON schema. Supported component types include page, navigation, header, hero, section, container, heading, text, image, button, form controls, card, grid, list, divider, footer, and unknown.
 
 Runtime validation rejects unexpected keys, invalid types, out-of-range coordinates, duplicate identifiers, missing parents, containment cycles, and invalid delta operations. Component alternatives and confidence values are retained so uncertain recognition remains explicit.
 
-### 6.2 Incremental sketch comparison
+### 7.2 Incremental sketch comparison
 
 After the first generation, the recognition endpoint receives the previous image, current image, and previous scene. The model reports only additions, updates, and deletions while keeping stable identifiers. Deleted parent components are checked as a cascade, and change identifiers must remain consistent with the previous scene.
 
 The generation endpoint applies only the delta unless the user requests a complete restyle. If every previous non-page component is deleted and new components are added, the client treats the sketch as a new topic and requests a full generation instead of preserving the old design.
 
-### 6.3 Spatial layout contract
+### 7.3 Spatial layout contract
 
 Before calling Kimi Code, the server derives parent-child relationships and horizontal or vertical spatial bands from normalized bounds. The prompt permits reasonable changes to size, padding, margin, and gap, but requires containment and relative direction to remain intact. Generated elements use `data-component-id` attributes so later updates and direct text editing can target the same logical component.
 
-### 6.4 Local geometric recognition
+### 7.4 Local geometric recognition
 
 Realtime Mode groups intersecting strokes drawn within a short time window and computes bounds, point-to-segment distance, segment intersection, path closure, direction changes, and path complexity. These measurements distinguish likely frames, dividers, freehand text, and image placeholders.
 
@@ -126,27 +154,27 @@ Frames with internal diagonal strokes are treated as likely images. Compact fram
 
 Semantic inference occurs before final sibling layout. Stacked paragraph strokes can be merged, contained labels can be absorbed by buttons or inputs, and row grouping uses overlap, distance, dividers, and manual order overrides. The resulting tree records vertical, horizontal, mixed, or grid layout information.
 
-### 6.5 Deterministic website generation
+### 7.5 Deterministic website generation
 
 The Realtime generator converts the inferred tree into semantic elements such as `nav`, `section`, `article`, headings, paragraphs, images, labels, inputs, forms, buttons, links, dividers, and footers. Text and attributes are escaped before insertion. Multi-page buttons resolve to unique, safe relative filenames.
 
 The generator produces React source for inspection and static HTML/CSS for preview and export. A local structural stylesheet establishes responsive layout independently of any AI-generated visual theme.
 
-### 6.6 Visual-only AI CSS
+### 7.6 Visual-only AI CSS
 
 Realtime Mode can send the current nested structure, a limited text sample, the original stylesheet, and the user's design brief to Kimi. The response is checked against a required selector catalogue. Protected layout properties—including display, grid, flex, positioning, dimensions, spacing, overflow, and font size—are removed from model CSS, then the local layout lock is appended again. This keeps Kimi responsible for visual treatment rather than structure.
 
-### 6.7 Preview isolation and failure handling
+### 7.7 Preview isolation and failure handling
 
 Generative HTML is filtered through an allow-list of tags and attributes. Scripts, external assets, external URLs, form submission, and interactive controls are removed or disabled. The preview uses a restrictive Content Security Policy and a sandboxed iframe.
 
 Kimi requests are server-side, accept only approved Moonshot HTTPS hosts, and map authentication, rate-limit, timeout, truncation, and invalid-output failures into controlled responses. Empty, truncated, or schema-invalid model output can be retried with a larger token allowance. Client request sequencing prevents an older response from overwriting a newer generation.
 
-### 6.8 Export pipeline
+### 7.8 Export pipeline
 
 Exports are assembled with JSZip. The archive contains `index.html`, shared CSS, any linked static pages, the bundled Bukhari font, its licence, and a README. Generated page links are relative, so the exported site can run without the Sketchly application or an API connection.
 
-## 7. Version History
+## 8. Version History
 
 Git records commit timestamps, not branch creation timestamps. The branch timeline below is therefore inferred from the shared base and the first unique commit reachable from each development branch. Times use UTC+08:00.
 
@@ -162,9 +190,8 @@ Git records commit timestamps, not branch creation timestamps. The branch timeli
 | 22 Aug, 14:41 | `main` | [`0884b67`](https://github.com/brianchen3388/HHCC-Chef-Bagels/commit/0884b67) introduced the unified homepage and both generation modes |
 | 22 Aug, 15:03–17:44 | `main` | Scroll fixes, semantic-container ordering, Sketchly branding, export access, linked-page ZIP export, and bundled export styles/fonts |
 
-The evidence shows that the Realtime lineage's first unique commit predates the Generative lineage's first unique commit by approximately 1 hour 38 minutes. The two lineages then developed concurrently; later merges mean their final branch histories are no longer completely isolated. Full histories are available for [`feature/recognition`](https://github.com/brianchen3388/HHCC-Chef-Bagels/commits/feature/recognition/), [`codex/kimi-css-designer`](https://github.com/brianchen3388/HHCC-Chef-Bagels/commits/codex/kimi-css-designer/), and [`main`](https://github.com/brianchen3388/HHCC-Chef-Bagels/commits/main/).
 
-## 8. Technology Stack and Runtime
+## 9. Technology Stack and Runtime
 
 | Layer | Technology |
 | --- | --- |
@@ -180,7 +207,7 @@ Required environment variables are documented in `.env.example`. `MOONSHOT_API_K
 
 The application starts with `npm install` followed by `npm run dev`. Production compilation uses `npm run build`. The current routes are `/`, `/ai`, `/geometric`, `/api/recognize`, `/api/generate`, and `/api/kimi-assist`.
 
-## 9. Verification and Current Status
+## 10. Verification and Current Status
 
 - `npm run lint`: passed on the current snapshot.
 - `npm run build`: passed after installing the lockfile dependencies.
@@ -189,9 +216,19 @@ The application starts with `npm install` followed by `npm run dev`. Production 
 - No live Kimi API generation was performed during this documentation pass.
 - `npm audit --omit=dev` currently reports three high-severity production dependency advisories involving the installed Next.js version and transitive PostCSS and Sharp packages. A dependency upgrade must be tested before deployment.
 
-## 10. Practical and Social Value
+## 11. Commerical and Social Value
 
-## 11. Technical Limitations and Future Work
+### 11.1 Commercial Value
+Sketchly's commercial value comes from shortening the distance between an idea and a testable webpage. Customers are not paying for sheer generated code; rather, they are paying for faster communication, immediate visual feedback, and a workflow that preserves both creative freedom and structure.
+Potential paying customers include:
+- **Schools and universities**, which could use Sketchly as a visual learning environment and pay for curriculum material, shared projects, and teacher dashboards.
+- **Design and product teams**, which could pay to accelerate client workshops and prototype creation.
+- **Small businesses and nonprofits**, which could pay for guided generation and templates.
+
+### 11.2 Social Value 
+Socially, Sketchly can lower the entry barrier to digital creation for students, teachers, small organizations, and people without prior programming knowledge. Its transparency can also help users learn how websites are structured rather than merely looking at a generation with unexplained results. It is also cost-friendly, as the only occasion that requires money is accessing the Kimi AI Model using an API in Generative Mode. This means that the Realtime mode is completely free and accessible.
+
+## 12. Technical Limitations and Future Work
 
 1. Generative Mode depends on a valid Moonshot API key, network access, model availability, and model latency.
 2. Realtime semantic inference is heuristic and can misclassify ambiguous shapes or dense overlapping strokes.
@@ -202,16 +239,26 @@ The application starts with `npm install` followed by `npm run dev`. Production 
 7. Public deployment would require authentication, per-user rate limits, request quotas, and secret-management review for the AI endpoints.
 8. Recognition accuracy and latency have not yet been measured against a labelled benchmark set.
 
-## 12. Team Contributions and AI-Use Disclosure
+## 13. Team Contributions and AI-Use Disclosure
 
-### 12.1 Team Contributions
+### 13.1 Team Contributions
+| Team Member | Role |
+| --- | --- |
+|Jason|Head of Product and Requirements|
+|Brian|Head of Technical Development|
+|Henry|Head of Design and Interaction|
+|Tiger|Head of Testing and Demonstration|
+|Patrick|Head of Presentations, Videos, and Roadshows|
 
-### 12.2 Runtime AI Use
+
+### 13.2 Runtime AI Use
 
 Generative Mode uses Kimi Vision to convert canvas images into structured component scenes or deltas and Kimi Code to convert validated structure into HTML/CSS. Realtime Mode performs recognition and base code generation locally; Kimi is optional and limited to visual CSS redesign. Model output is treated as untrusted input and is validated, constrained, or sanitised before use.
 
-### 12.3 Development AI Tools
+### 13.3 Development AI Tools
 
-## 13. Current Technical Conclusion
+This project used Codex to assist with code analysis, debugging, test writing, and document preparation. The team made the product-positioning, scope, technical-route, parameter, and acceptance decisions. Team members have read, modified, and can explain the submitted code.
+
+## 14. Current Technical Conclusion
 
 The current prototype implements two complete wireframe-to-static-site paths with different latency, control, and interpretation characteristics. Their shared output model enables preview, structure inspection, direct content editing, responsive display, and offline export while keeping AI-generated structure separate from locally enforced structural constraints.
