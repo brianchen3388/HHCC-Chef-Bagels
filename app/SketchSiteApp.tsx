@@ -24,12 +24,13 @@ import type {
 } from './sketch/model';
 import { CANVAS_PAGE_RATIO } from './sketch/model';
 import { inferWebsite, recognizeCanvas } from './sketch/recognition';
-import { generateKimiCss, refineRecognitionWithKimi } from './sketch/kimi-assist';
+import { generateKimiCss } from './sketch/kimi-assist';
 
 type PreviewSize = 'desktop' | 'tablet' | 'mobile';
 type OutputView = 'preview' | 'structure' | 'code';
 type CodeView = 'react' | 'css';
-type RecognitionStatus = 'idle' | 'analyzing' | 'styling' | 'ready' | 'fallback';
+type RecognitionStatus = 'idle' | 'analyzing' | 'ready';
+type CssGenerationStatus = 'idle' | 'generating' | 'ready' | 'error';
 
 type ProjectPage = {
   id: string;
@@ -38,20 +39,13 @@ type ProjectPage = {
   canvasItems: CanvasItem[];
   primitives: RecognizedPrimitive[];
   overrides: StructureOverrides;
-  aiOverrides: StructureOverrides;
   layout: StructureLayout;
   customizations: ElementCustomizations;
-  kimiCss: string | null;
 };
 
 const emptyLayout = (): StructureLayout => ({
   parentByPrimitiveId: {},
   orderByParentId: {},
-});
-
-const withoutKimiPairing = (layout: StructureLayout): StructureLayout => ({
-  parentByPrimitiveId: layout.parentByPrimitiveId,
-  orderByParentId: layout.orderByParentId,
 });
 
 const createProjectPage = (index: number): ProjectPage => ({
@@ -61,10 +55,8 @@ const createProjectPage = (index: number): ProjectPage => ({
   canvasItems: [],
   primitives: [],
   overrides: {},
-  aiOverrides: {},
   layout: emptyLayout(),
   customizations: {},
-  kimiCss: null,
 });
 
 const initialPage = createProjectPage(1);
@@ -79,6 +71,12 @@ const outputViews: Array<{ id: OutputView; label: string }> = [
   { id: 'preview', label: 'Preview' },
   { id: 'structure', label: 'Structure' },
   { id: 'code', label: 'Code' },
+];
+
+const designPresets = [
+  'Warm editorial design with serif headlines, cream surfaces, and deep red accents',
+  'Clean futuristic interface with dark navy panels, electric blue accents, and crisp geometry',
+  'Playful colorful design with rounded cards, bold typography, and soft layered shadows',
 ];
 
 const correctionTypes: Array<{ value: StructureOverrideType; label: string }> = [
@@ -436,8 +434,10 @@ type OutputPanelProps = {
   codeView: CodeView;
   copiedLabel: string;
   cssCode: string;
+  cssGenerationStatus: CssGenerationStatus;
   cssLabel: string;
   customCss: string | null;
+  designPrompt: string;
   outputView: OutputView;
   previewSize: PreviewSize;
   primitives: RecognizedPrimitive[];
@@ -447,6 +447,9 @@ type OutputPanelProps = {
   site: GeneratedWebsite;
   pages: Array<{ id: string; name: string; slug: string }>;
   onCopy: () => void;
+  onDesignPromptChange: (value: string) => void;
+  onGenerateCss: () => void;
+  onResetCss: () => void;
   onCreateLinkedPage: (sourceId: string) => void;
   onElementEdit: (sourceId: string, patch: ElementCustomization) => void;
   onPageChange: (pageId: string) => void;
@@ -462,9 +465,14 @@ function OutputPanel({
   codeView,
   copiedLabel,
   cssCode,
+  cssGenerationStatus,
   cssLabel,
   customCss,
+  designPrompt,
   onCopy,
+  onDesignPromptChange,
+  onGenerateCss,
+  onResetCss,
   onCreateLinkedPage,
   onElementEdit,
   onPageChange,
@@ -760,6 +768,62 @@ function OutputPanel({
 
       {outputView === 'code' && (
         <div className="code-stage">
+          <form
+            className="css-designer"
+            onSubmit={(event) => {
+              event.preventDefault();
+              onGenerateCss();
+            }}
+          >
+            <div className="css-designer-heading">
+              <div>
+                <p className="eyebrow">Design with Kimi</p>
+                <h3>Describe how the website should look</h3>
+              </div>
+              <span className={`css-generation-state ${cssGenerationStatus}`} aria-live="polite">
+                {cssGenerationStatus === 'generating'
+                  ? 'Generating complete CSS…'
+                  : cssGenerationStatus === 'ready'
+                    ? 'Kimi CSS applied'
+                    : cssGenerationStatus === 'error'
+                      ? 'Could not generate · current CSS kept'
+                      : cssLabel}
+              </span>
+            </div>
+            <label>
+              Design brief
+              <textarea
+                maxLength={2000}
+                onChange={(event) => onDesignPromptChange(event.target.value)}
+                placeholder="Example: A refined Japanese-inspired portfolio with warm paper tones, precise spacing, dark ink text, and subtle red accents."
+                rows={3}
+                value={designPrompt}
+              />
+            </label>
+            <div className="design-presets" aria-label="Design suggestions">
+              {designPresets.map((preset, index) => (
+                <button
+                  key={preset}
+                  onClick={() => onDesignPromptChange(preset)}
+                  type="button"
+                >
+                  {['Editorial', 'Futuristic', 'Playful'][index]}
+                </button>
+              ))}
+            </div>
+            <div className="css-designer-actions">
+              <button
+                disabled={designPrompt.trim().length < 3 || cssGenerationStatus === 'generating'}
+                type="submit"
+              >
+                {cssGenerationStatus === 'generating' ? 'Generating…' : 'Generate CSS'}
+              </button>
+              {customCss && (
+                <button onClick={onResetCss} type="button">Use original CSS</button>
+              )}
+              <small>Every generated component receives styles, even if it is not on the current page.</small>
+            </div>
+          </form>
           <div className="code-toolbar">
             <div>
               <button
@@ -807,8 +871,12 @@ export default function SketchSiteApp() {
   const [outputView, setOutputView] = useState<OutputView>('preview');
   const [codeView, setCodeView] = useState<CodeView>('react');
   const [copiedLabel, setCopiedLabel] = useState('Copy code');
+  const [designPrompt, setDesignPrompt] = useState('');
+  const [kimiCss, setKimiCss] = useState<string | null>(null);
+  const [cssGenerationStatus, setCssGenerationStatus] =
+    useState<CssGenerationStatus>('idle');
   const recognitionRevision = useRef(0);
-  const recognitionAbort = useRef<AbortController | null>(null);
+  const cssGenerationAbort = useRef<AbortController | null>(null);
   const activePage = pages.find((page) => page.id === activePageId) ?? pages[0];
   const originalCss = useMemo(() => generateCss(), []);
 
@@ -816,83 +884,6 @@ export default function SketchSiteApp() {
     setPages((current) => current.map((page) => (
       page.id === activePageId ? updater(page) : page
     )));
-  }
-
-  async function identifyPage(pageSnapshot: ProjectPage, revision: number) {
-    recognitionAbort.current?.abort();
-    const controller = new AbortController();
-    recognitionAbort.current = controller;
-    const primitives = recognizeCanvas(pageSnapshot.canvasItems);
-    const localLayout = withoutKimiPairing(pageSnapshot.layout);
-    const baselineSite = inferWebsite(
-      primitives,
-      pageSnapshot.overrides,
-      localLayout,
-      pageSnapshot.customizations,
-    );
-
-    let aiOverrides: StructureOverrides = {};
-    let pairWithByPrimitiveId: Record<string, string | null> = {};
-    let fallbackUsed = false;
-    let kimiAvailable = true;
-
-    try {
-      const refinement = await refineRecognitionWithKimi(
-        baselineSite,
-        primitives,
-        pageSnapshot.overrides,
-        (nextAiOverrides) => inferWebsite(
-          primitives,
-          { ...nextAiOverrides, ...pageSnapshot.overrides },
-          localLayout,
-          pageSnapshot.customizations,
-        ),
-        controller.signal,
-      );
-      aiOverrides = refinement.aiOverrides;
-      pairWithByPrimitiveId = refinement.pairWithByPrimitiveId;
-      fallbackUsed = refinement.fallbackUsed;
-      kimiAvailable = refinement.kimiAvailable;
-    } catch {
-      if (controller.signal.aborted || recognitionRevision.current !== revision) return;
-      fallbackUsed = true;
-      kimiAvailable = false;
-    }
-
-    if (controller.signal.aborted || recognitionRevision.current !== revision) return;
-    const finalLayout: StructureLayout = {
-      ...localLayout,
-      pairWithByPrimitiveId,
-    };
-    const finalSite = inferWebsite(
-      primitives,
-      { ...aiOverrides, ...pageSnapshot.overrides },
-      finalLayout,
-      pageSnapshot.customizations,
-    );
-    setPages((current) => current.map((page) => (
-      page.id === pageSnapshot.id
-        ? { ...page, primitives, aiOverrides, layout: { ...page.layout, pairWithByPrimitiveId }, kimiCss: null }
-        : page
-    )));
-
-    if (!kimiAvailable) {
-      setRecognitionStatus('fallback');
-      return;
-    }
-
-    setRecognitionStatus('styling');
-    try {
-      const nextCss = await generateKimiCss(finalSite, originalCss, controller.signal);
-      if (controller.signal.aborted || recognitionRevision.current !== revision) return;
-      setPages((current) => current.map((page) => (
-        page.id === pageSnapshot.id ? { ...page, kimiCss: nextCss } : page
-      )));
-      setRecognitionStatus(fallbackUsed ? 'fallback' : 'ready');
-    } catch {
-      if (controller.signal.aborted || recognitionRevision.current !== revision) return;
-      setRecognitionStatus('fallback');
-    }
   }
 
   useEffect(() => {
@@ -903,8 +894,16 @@ export default function SketchSiteApp() {
       return;
     }
 
-    const pageSnapshot = activePage;
-    const timer = window.setTimeout(() => void identifyPage(pageSnapshot, revision), 500);
+    const pageId = activePage.id;
+    const canvasItems = activePage.canvasItems;
+    const timer = window.setTimeout(() => {
+      const primitives = recognizeCanvas(canvasItems);
+      if (recognitionRevision.current !== revision) return;
+      setPages((current) => current.map((page) => (
+        page.id === pageId ? { ...page, primitives } : page
+      )));
+      setRecognitionStatus('ready');
+    }, 500);
 
     return () => window.clearTimeout(timer);
     // Recognition should restart only for a canvas or page change, not for its own result updates.
@@ -916,32 +915,26 @@ export default function SketchSiteApp() {
       id: page.id,
       name: page.name,
       slug: page.slug,
-      site: inferWebsite(
-        page.primitives,
-        { ...page.aiOverrides, ...page.overrides },
-        page.layout,
-        page.customizations,
-      ),
+      site: inferWebsite(page.primitives, page.overrides, page.layout, page.customizations),
     })),
     [pages],
   );
   const site = generatedPages.find((page) => page.id === activePageId)?.site ?? generatedPages[0].site;
   const reactCode = useMemo(() => generateReact(generatedPages), [generatedPages]);
-  const cssCode = activePage.kimiCss ?? originalCss;
-  const cssLabel = activePage.kimiCss ? 'Kimi CSS active' : 'Original CSS';
+  const cssCode = kimiCss ?? originalCss;
+  const cssLabel = kimiCss ? 'Kimi CSS active' : 'Original CSS';
 
   function handleCanvasItemsChange(nextItems: CanvasItem[]) {
     updateActivePage((page) => ({
       ...page,
       canvasItems: nextItems,
       ...(nextItems.length === 0
-        ? { primitives: [], overrides: {}, aiOverrides: {}, layout: emptyLayout(), customizations: {}, kimiCss: null }
-        : { aiOverrides: {}, layout: withoutKimiPairing(page.layout), kimiCss: null }),
+        ? { primitives: [], overrides: {}, layout: emptyLayout(), customizations: {} }
+        : {}),
     }));
     setRecognitionStatus(nextItems.length > 0 ? 'analyzing' : 'idle');
     if (nextItems.length === 0) {
       recognitionRevision.current += 1;
-      recognitionAbort.current?.abort();
     }
   }
 
@@ -949,7 +942,6 @@ export default function SketchSiteApp() {
     const page = pages.find((candidate) => candidate.id === pageId);
     if (!page) return;
     recognitionRevision.current += 1;
-    recognitionAbort.current?.abort();
     setActivePageId(pageId);
     setRecognitionStatus(page.canvasItems.length === 0 ? 'idle' : page.primitives.length > 0 ? 'ready' : 'analyzing');
   }
@@ -979,7 +971,6 @@ export default function SketchSiteApp() {
       nextPage,
     ]);
     recognitionRevision.current += 1;
-    recognitionAbort.current?.abort();
     setActivePageId(nextPage.id);
     setRecognitionStatus('idle');
   }
@@ -1033,15 +1024,42 @@ export default function SketchSiteApp() {
   }
 
   function recognizeNow() {
-    const revision = recognitionRevision.current + 1;
-    recognitionRevision.current = revision;
+    recognitionRevision.current += 1;
     if (activePage.canvasItems.length === 0) {
       setRecognitionStatus('idle');
       return;
     }
-    setRecognitionStatus('analyzing');
-    updateActivePage((page) => ({ ...page, aiOverrides: {}, layout: withoutKimiPairing(page.layout), kimiCss: null }));
-    void identifyPage(activePage, revision);
+    updateActivePage((page) => ({ ...page, primitives: recognizeCanvas(page.canvasItems) }));
+    setRecognitionStatus('ready');
+  }
+
+  async function handleGenerateCss() {
+    const brief = designPrompt.trim();
+    if (brief.length < 3) return;
+    cssGenerationAbort.current?.abort();
+    const controller = new AbortController();
+    cssGenerationAbort.current = controller;
+    setCssGenerationStatus('generating');
+    try {
+      const nextCss = await generateKimiCss(
+        generatedPages,
+        originalCss,
+        brief,
+        controller.signal,
+      );
+      if (controller.signal.aborted) return;
+      setKimiCss(nextCss);
+      setCssGenerationStatus('ready');
+      setCodeView('css');
+    } catch {
+      if (!controller.signal.aborted) setCssGenerationStatus('error');
+    }
+  }
+
+  function handleResetCss() {
+    cssGenerationAbort.current?.abort();
+    setKimiCss(null);
+    setCssGenerationStatus('idle');
   }
 
   async function copyCode() {
@@ -1070,10 +1088,6 @@ export default function SketchSiteApp() {
           <span className="status-dot" aria-hidden="true" />
           {recognitionStatus === 'analyzing'
             ? 'Analyzing sketch'
-            : recognitionStatus === 'styling'
-              ? 'Building Kimi CSS'
-              : recognitionStatus === 'fallback'
-                ? 'Ready · local fallback used'
             : recognitionStatus === 'ready'
               ? 'Recognition ready'
               : 'Canvas ready'}
@@ -1108,12 +1122,17 @@ export default function SketchSiteApp() {
           codeView={codeView}
           copiedLabel={copiedLabel}
           cssCode={cssCode}
+          cssGenerationStatus={cssGenerationStatus}
           cssLabel={cssLabel}
-          customCss={activePage.kimiCss}
+          customCss={kimiCss}
+          designPrompt={designPrompt}
           onCopy={copyCode}
           onCreateLinkedPage={handleCreateLinkedPage}
+          onDesignPromptChange={setDesignPrompt}
           onElementEdit={handleElementEdit}
+          onGenerateCss={() => void handleGenerateCss()}
           onPageChange={handlePageChange}
+          onResetCss={handleResetCss}
           onStructureOverride={handleStructureOverride}
           onStructureParent={handleStructureParent}
           onStructureMove={handleStructureMove}

@@ -85,16 +85,6 @@ button:disabled { color: inherit; cursor: default; opacity: 1; }
   box-shadow: 0 0 0 3px #f7ead3;
 }
 
-.status.styling .status-dot {
-  background: #7d6fe8;
-  box-shadow: 0 0 0 3px #e9e5ff;
-}
-
-.status.fallback .status-dot {
-  background: #d7952e;
-  box-shadow: 0 0 0 3px #f7ead3;
-}
-
 .preview-sizes {
   display: flex;
   justify-self: end;
@@ -809,7 +799,23 @@ p.variant-alternate { border-left: 3px solid #246b47; background: #f0f6f2; paddi
   .structure-tree { grid-row: 2; }
 }
 
-.code-stage { display: grid; grid-template-rows: auto minmax(0, 1fr); padding: 0; background: #17211b; }
+.code-stage { display: grid; grid-template-rows: auto auto minmax(0, 1fr); min-height: 0; padding: 0; background: #17211b; }
+.css-designer { display: grid; gap: 10px; border-bottom: 1px solid var(--line); background: #f8faf8; padding: 14px; color: var(--ink); }
+.css-designer-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
+.css-designer-heading h3 { margin: 2px 0 0; font-size: 13px; }
+.css-generation-state { border-radius: 999px; background: #e8eee9; padding: 5px 8px; color: var(--muted); font-size: 9px; white-space: nowrap; }
+.css-generation-state.generating { background: #eeeaff; color: #5d4ac3; }
+.css-generation-state.ready { background: #dff3e6; color: #226b42; }
+.css-generation-state.error { background: #f8e8dc; color: #95511f; }
+.css-designer label { display: grid; gap: 5px; color: var(--muted); font-size: 9px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
+.css-designer textarea { width: 100%; resize: vertical; border: 1px solid #cdd8d0; border-radius: 8px; background: white; padding: 9px 10px; color: var(--ink); font: 10px/1.5 var(--font-geist-sans), sans-serif; text-transform: none; }
+.css-designer textarea:focus { outline: 2px solid #72a083; outline-offset: 1px; }
+.design-presets, .css-designer-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.design-presets button, .css-designer-actions button { border: 1px solid #bccbc1; border-radius: 999px; background: white; padding: 6px 9px; color: #31483a; font-size: 9px; font-weight: 700; }
+.design-presets button:hover, .css-designer-actions button:hover { border-color: #70917b; background: #edf4ef; }
+.css-designer-actions button[type='submit'] { border-color: #246b47; background: #246b47; color: white; }
+.css-designer-actions button:disabled { cursor: not-allowed; opacity: 0.45; }
+.css-designer-actions small { margin-left: auto; color: var(--muted); font-size: 8px; }
 .code-toolbar { display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #344039; padding: 10px 13px; }
 .code-toolbar div { display: flex; gap: 4px; }
 .code-toolbar .css-source-badge { align-self: center; margin-left: 6px; color: #9fada3; font-size: 9px; }
