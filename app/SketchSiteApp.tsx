@@ -8,7 +8,9 @@ import {
   type ChangeEvent,
   type MouseEvent as ReactMouseEvent,
 } from 'react';
+import Link from 'next/link';
 import DrawingWorkspace from './DrawingWorkspace';
+import { downloadHtmlFile } from './export-html';
 import { generateCss, generateReact } from './sketch/codegen';
 import type {
   CanvasItem,
@@ -389,7 +391,7 @@ function GeneratedPreview({
   }
 
   return (
-    <div className="generated-site-preview">
+    <div className="generated-site-preview" id="geometric-export-root">
       {customCss && <style>{scopeGeneratedCss(customCss)}</style>}
       <div className="generated-page-layout site">
         <GeneratedRows
@@ -510,6 +512,7 @@ type OutputPanelProps = {
   site: GeneratedWebsite;
   pages: Array<{ id: string; name: string; slug: string }>;
   onCopy: () => void;
+  onExport: () => void;
   onDesignPromptChange: (value: string) => void;
   onGenerateCss: () => void;
   onResetCss: () => void;
@@ -534,6 +537,7 @@ function OutputPanel({
   customCss,
   designPrompt,
   onCopy,
+  onExport,
   onDesignPromptChange,
   onGenerateCss,
   onResetCss,
@@ -911,9 +915,14 @@ function OutputPanel({
               </button>
               {codeView === 'css' && <span className="css-source-badge">{cssLabel}</span>}
             </div>
-            <button disabled={site.tree.children.length === 0} onClick={onCopy} type="button">
-              {copiedLabel}
-            </button>
+            <div>
+              <button disabled={site.tree.children.length === 0} onClick={onExport} type="button">
+                Export HTML
+              </button>
+              <button disabled={site.tree.children.length === 0} onClick={onCopy} type="button">
+                {copiedLabel}
+              </button>
+            </div>
           </div>
           <pre>
             <code>{codeView === 'react' ? reactCode : cssCode}</code>
@@ -1151,6 +1160,12 @@ export default function SketchSiteApp() {
     }
   }
 
+  function exportWebsite() {
+    const siteRoot = document.querySelector<HTMLElement>('#geometric-export-root .site');
+    if (!siteRoot) return;
+    downloadHtmlFile('sketchsite-geometric.html', siteRoot.outerHTML, cssCode);
+  }
+
   const confidentCount = activePage.primitives.filter(
     (primitive) => primitive.confidence >= 0.75,
   ).length;
@@ -1158,10 +1173,10 @@ export default function SketchSiteApp() {
   return (
     <main className="app-shell">
       <header className="topbar">
-        <div className="brand" aria-label="SketchSite home">
+        <Link className="brand" href="/" aria-label="SketchSite home">
           <span className="brand-mark" aria-hidden="true">S</span>
           <span>SketchSite</span>
-        </div>
+        </Link>
 
         <div className={`status ${recognitionStatus}`} aria-live="polite">
           <span className="status-dot" aria-hidden="true" />
@@ -1207,6 +1222,7 @@ export default function SketchSiteApp() {
           customCss={kimiCss}
           designPrompt={designPrompt}
           onCopy={copyCode}
+          onExport={exportWebsite}
           onCreateLinkedPage={handleCreateLinkedPage}
           onDesignPromptChange={setDesignPrompt}
           onElementEdit={handleElementEdit}
