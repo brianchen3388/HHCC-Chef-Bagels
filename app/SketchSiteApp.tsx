@@ -434,6 +434,7 @@ type OutputPanelProps = {
   codeView: CodeView;
   copiedLabel: string;
   cssCode: string;
+  cssGenerationError: string | null;
   cssGenerationStatus: CssGenerationStatus;
   cssLabel: string;
   customCss: string | null;
@@ -465,6 +466,7 @@ function OutputPanel({
   codeView,
   copiedLabel,
   cssCode,
+  cssGenerationError,
   cssGenerationStatus,
   cssLabel,
   customCss,
@@ -782,11 +784,11 @@ function OutputPanel({
               </div>
               <span className={`css-generation-state ${cssGenerationStatus}`} aria-live="polite">
                 {cssGenerationStatus === 'generating'
-                  ? 'Generating complete CSS…'
+                  ? 'Generating complete CSS · may take up to a minute…'
                   : cssGenerationStatus === 'ready'
                     ? 'Kimi CSS applied'
                     : cssGenerationStatus === 'error'
-                      ? 'Could not generate · current CSS kept'
+                      ? cssGenerationError ?? 'Could not generate · current CSS kept'
                       : cssLabel}
               </span>
             </div>
@@ -873,6 +875,7 @@ export default function SketchSiteApp() {
   const [copiedLabel, setCopiedLabel] = useState('Copy code');
   const [designPrompt, setDesignPrompt] = useState('');
   const [kimiCss, setKimiCss] = useState<string | null>(null);
+  const [cssGenerationError, setCssGenerationError] = useState<string | null>(null);
   const [cssGenerationStatus, setCssGenerationStatus] =
     useState<CssGenerationStatus>('idle');
   const recognitionRevision = useRef(0);
@@ -1039,6 +1042,7 @@ export default function SketchSiteApp() {
     cssGenerationAbort.current?.abort();
     const controller = new AbortController();
     cssGenerationAbort.current = controller;
+    setCssGenerationError(null);
     setCssGenerationStatus('generating');
     try {
       const nextCss = await generateKimiCss(
@@ -1051,14 +1055,20 @@ export default function SketchSiteApp() {
       setKimiCss(nextCss);
       setCssGenerationStatus('ready');
       setCodeView('css');
-    } catch {
-      if (!controller.signal.aborted) setCssGenerationStatus('error');
+    } catch (error) {
+      if (!controller.signal.aborted) {
+        setCssGenerationError(
+          error instanceof Error ? error.message : 'Kimi CSS generation failed.',
+        );
+        setCssGenerationStatus('error');
+      }
     }
   }
 
   function handleResetCss() {
     cssGenerationAbort.current?.abort();
     setKimiCss(null);
+    setCssGenerationError(null);
     setCssGenerationStatus('idle');
   }
 
@@ -1122,6 +1132,7 @@ export default function SketchSiteApp() {
           codeView={codeView}
           copiedLabel={copiedLabel}
           cssCode={cssCode}
+          cssGenerationError={cssGenerationError}
           cssGenerationStatus={cssGenerationStatus}
           cssLabel={cssLabel}
           customCss={kimiCss}

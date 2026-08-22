@@ -76,7 +76,7 @@ export async function POST(request: Request) {
     const visibleText = Array.isArray(body.visibleText)
       ? body.visibleText
           .filter((value): value is string => typeof value === 'string')
-          .slice(0, 150)
+          .slice(0, 40)
           .map((value) => value.slice(0, 300))
       : [];
     if (
@@ -90,9 +90,10 @@ export async function POST(request: Request) {
 
     const css = await requestKimiValidatedJson({
       model: process.env.KIMI_CODE_MODEL ?? 'kimi-k2.7-code-highspeed',
+      reasoningEffort: 'low',
       maxTokens: 12_000,
-      retryMaxTokens: 18_000,
-      timeoutMs: 30_000,
+      retryMaxTokens: 16_000,
+      timeoutMs: 75_000,
       schemaName: 'sketchsite_designed_css',
       schema: {
         type: 'object',
@@ -116,6 +117,8 @@ export async function POST(request: Request) {
           content: [
             'Create a fresh generated-site.css from the user design brief.',
             'The file must style every selector in the required component catalog, including components absent from the current pages.',
+            'Keep the stylesheet concise—prefer grouped selectors, reusable custom properties, and no comments.',
+            'Target 3500-7000 visible characters of CSS; do not explain the stylesheet.',
             'Use responsive layout, accessible contrast, visible keyboard focus, sensible overflow handling, and mobile rules.',
             `Required selector catalog: ${REQUIRED_SELECTORS.join(', ')}`,
             `User design brief: ${designPrompt}`,

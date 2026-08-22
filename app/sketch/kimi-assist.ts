@@ -9,7 +9,7 @@ function collectVisibleText(node: WebsiteNode, values: string[]) {
 export function visibleProjectText(pages: GeneratedProjectPage[]) {
   const values: string[] = [];
   pages.forEach((page) => collectVisibleText(page.site.tree, values));
-  return values.slice(0, 150);
+  return values.slice(0, 40);
 }
 
 export async function generateKimiCss(
@@ -29,8 +29,12 @@ export async function generateKimiCss(
     }),
     signal,
   });
-  if (!response.ok) throw new Error('Kimi CSS generation unavailable');
-  const result = await response.json() as { css?: unknown };
+  const result = await response.json() as { css?: unknown; error?: unknown };
+  if (!response.ok) {
+    throw new Error(
+      typeof result.error === 'string' ? result.error : 'Kimi CSS generation unavailable',
+    );
+  }
   if (typeof result.css !== 'string') throw new Error('Kimi returned invalid CSS');
   return result.css;
 }
