@@ -10,7 +10,12 @@ import {
 } from 'react';
 import Link from 'next/link';
 import DrawingWorkspace from './DrawingWorkspace';
-import { buildHtmlDocument, downloadWebsiteZip } from './export-html';
+import {
+  buildExportStylesheet,
+  buildHtmlDocument,
+  downloadWebsiteZip,
+  loadWebsiteExportDependencies,
+} from './export-html';
 import { generateCss, generateReact, generateStaticPages } from './sketch/codegen';
 import type {
   CanvasItem,
@@ -1087,15 +1092,20 @@ export default function SketchSiteApp() {
     const staticPages = generateStaticPages(generatedPages);
     if (!canExport || staticPages.length === 0) return;
     try {
+      const dependencies = await loadWebsiteExportDependencies();
       await downloadWebsiteZip('sketchly-website.zip', [
         ...staticPages.map((page) => ({
           name: page.filename,
           content: buildHtmlDocument(page.name, page.bodyHtml),
         })),
-        { name: 'styles.css', content: cssCode },
+        {
+          name: 'styles.css',
+          content: buildExportStylesheet(cssCode, kimiCss ? originalCss : undefined),
+        },
+        ...dependencies,
         {
           name: 'README.txt',
-          content: 'Sketchly website export\n\nOpen index.html in a browser. Linked buttons use the other HTML files in this folder.',
+          content: 'Sketchly website export\n\nOpen index.html in a browser. Linked buttons use the other HTML files in this folder. All required styles and fonts are included, so no install step is needed.',
         },
       ]);
     } catch {

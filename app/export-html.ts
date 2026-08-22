@@ -2,8 +2,68 @@ import JSZip from 'jszip';
 
 export type WebsiteExportFile = {
   name: string;
-  content: string;
+  content: string | Uint8Array;
 };
+
+const bundledExportAssets = [
+  {
+    source: '/fonts/bukhari-script.woff',
+    name: 'assets/bukhari-script.woff',
+    binary: true,
+  },
+  {
+    source: '/fonts/bukhari-script-license.txt',
+    name: 'assets/bukhari-script-license.txt',
+    binary: false,
+  },
+] as const;
+
+const bundledFontCss = `/* Font packaged with this export for offline use. */
+@font-face {
+  font-family: 'Sketchly Bukhari';
+  src: url('./assets/bukhari-script.woff') format('woff');
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Bukhari';
+  src: url('./assets/bukhari-script.woff') format('woff');
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Bukhari Script';
+  src: url('./assets/bukhari-script.woff') format('woff');
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}`;
+
+export function buildExportStylesheet(css: string, baseCss?: string) {
+  const layers = baseCss && baseCss.trim() !== css.trim()
+    ? `${baseCss.trim()}\n\n/* Generated visual theme overrides. */\n${css.trim()}`
+    : css.trim();
+  return `${bundledFontCss}\n\n${layers}\n`;
+}
+
+export async function loadWebsiteExportDependencies(): Promise<WebsiteExportFile[]> {
+  return Promise.all(bundledExportAssets.map(async (asset) => {
+    const response = await fetch(asset.source);
+    if (!response.ok) {
+      throw new Error(`Could not load export dependency: ${asset.name}`);
+    }
+    return {
+      name: asset.name,
+      content: asset.binary
+        ? new Uint8Array(await response.arrayBuffer())
+        : await response.text(),
+    };
+  }));
+}
 
 export function buildHtmlDocument(
   title: string,

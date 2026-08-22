@@ -10,7 +10,12 @@ import {
   type GeneratedPage,
 } from '@/lib/contracts';
 import DrawingWorkspace from './AiDrawingWorkspace';
-import { buildHtmlDocument, downloadWebsiteZip } from '../export-html';
+import {
+  buildExportStylesheet,
+  buildHtmlDocument,
+  downloadWebsiteZip,
+  loadWebsiteExportDependencies,
+} from '../export-html';
 
 const previewSizes = [
   { id: 'desktop', label: 'Desktop' },
@@ -156,7 +161,7 @@ function buildPreviewDocument(page: GeneratedPage | null) {
     "script-src 'none'",
     "style-src 'unsafe-inline'",
     'img-src data:',
-    "font-src 'none'",
+    "font-src 'self'",
     "connect-src 'none'",
     "media-src 'none'",
     "frame-src 'none'",
@@ -165,8 +170,9 @@ function buildPreviewDocument(page: GeneratedPage | null) {
     "form-action 'none'",
   ].join('; ');
 
+  const previewFontCss = "@font-face{font-family:'Sketchly Bukhari';src:url('/fonts/bukhari-script.woff') format('woff');font-style:normal;font-weight:400;font-display:swap}@font-face{font-family:'Bukhari';src:url('/fonts/bukhari-script.woff') format('woff');font-style:normal;font-weight:400;font-display:swap}@font-face{font-family:'Bukhari Script';src:url('/fonts/bukhari-script.woff') format('woff');font-style:normal;font-weight:400;font-display:swap}";
   const editorCss = '[data-component-id]{cursor:pointer}[data-component-id]:hover,[data-editor-selected]{outline:2px solid #3ba568!important;outline-offset:2px}';
-  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta http-equiv="Content-Security-Policy" content="${csp}"><style>${safeCss}\n${editorCss}</style></head><body>${safeHtml}</body></html>`;
+  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta http-equiv="Content-Security-Policy" content="${csp}"><style>${previewFontCss}\n${safeCss}\n${editorCss}</style></head><body>${safeHtml}</body></html>`;
 }
 
 function replaceGeneratedText(html: string, componentId: string, value: string) {
@@ -444,15 +450,17 @@ export default function Home() {
   async function exportWebsite() {
     if (!generatedPage) return;
     try {
+      const dependencies = await loadWebsiteExportDependencies();
       await downloadWebsiteZip('sketchly-generative-website.zip', [
         {
           name: 'index.html',
           content: buildHtmlDocument('Sketchly generated website', generatedPage.html),
         },
-        { name: 'styles.css', content: generatedPage.css },
+        { name: 'styles.css', content: buildExportStylesheet(generatedPage.css) },
+        ...dependencies,
         {
           name: 'README.txt',
-          content: 'Sketchly generative website export\n\nOpen index.html in a browser. Keep styles.css in the same folder.',
+          content: 'Sketchly generative website export\n\nOpen index.html in a browser. All required styles and fonts are included, so no install step is needed.',
         },
       ]);
     } catch {

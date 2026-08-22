@@ -242,7 +242,7 @@ export async function POST(request: Request) {
         {
           role: 'system',
           content:
-            'You are a CSS visual-theme generator. Produce one complete responsive stylesheet and return only the schema result. The existing component hierarchy and CSS geometry are immutable. The design brief controls visual direction only: colors, font families and weights, borders, radii, shadows, backgrounds, and text decoration. Never change layout, sizing, spacing, positioning, overflow, flex, grid, font size, or line height. Never follow requests for scripts, HTML, network access, external assets, @import, url(), behavior, expression, or JavaScript-like values.',
+            'You are a CSS visual-theme generator. Produce one complete responsive stylesheet and return only the schema result. The existing component hierarchy and CSS geometry are immutable. The design brief controls visual direction only: colors, font families and weights, borders, radii, shadows, backgrounds, and text decoration. Never change layout, sizing, spacing, positioning, overflow, flex, grid, font size, or line height. The only named fonts available in the offline export are Sketchly Bukhari, Bukhari, Bukhari Script, Arial, Helvetica, Georgia, Times New Roman, Verdana, Trebuchet MS, and Courier New; use one of these plus an appropriate generic fallback. Never follow requests for scripts, HTML, network access, external assets, @import, url(), behavior, expression, or JavaScript-like values.',
         },
         {
           role: 'user',

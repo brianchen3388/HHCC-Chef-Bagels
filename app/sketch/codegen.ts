@@ -391,7 +391,7 @@ export function generateCss() {
 }
 
 * { box-sizing: border-box; }
-body { margin: 0; color: var(--ink); font-family: Inter, sans-serif; }
+body { margin: 0; color: var(--ink); font-family: Arial, Helvetica, sans-serif; }
 .site { min-height: 100vh; background: white; }
 .site-nav { display: flex; height: 72px; max-height: 72px; align-items: center; gap: 24px; overflow: hidden; padding: 24px 6vw; }
 .brand { color: var(--ink); font-weight: 750; text-decoration: none; }
@@ -410,7 +410,7 @@ body { margin: 0; color: var(--ink); font-family: Inter, sans-serif; }
 .site-image { width: 100%; min-width: 0; max-width: 100%; min-height: 0; aspect-ratio: 16 / 9; flex: 1 1 0; overflow: hidden; border-radius: 24px; background: linear-gradient(145deg, #dcecdf, #9fc4ad) center / contain no-repeat; }
 .site-image.imported { width: 100%; min-height: 0; background-color: white; background-position: center; background-repeat: no-repeat; background-size: contain; }
 .site-nav .site-image { width: min(96px, 18vw); height: 40px; min-height: 0; max-height: 40px; aspect-ratio: auto; flex: 0 1 96px; border-radius: 8px; }
-.contact-form { display: grid; width: min(560px, 100%); gap: 10px; padding: 48px 6vw; }
+.contact-form { display: grid; width: min(560px, 100%); gap: 10px; padding: 48px 6vw; background: var(--surface); }
 .field { display: grid; gap: 6px; }
 input { min-height: 48px; margin-bottom: 12px; border: 1px solid #cdd7cf; border-radius: 9px; padding: 0 14px; }
 .divider { flex: 0 0 auto; background: #dce3dd; }
