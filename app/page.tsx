@@ -1,7 +1,13 @@
 'use client';
 
-import { useMemo, useRef, useState } from 'react';
-import type { ComponentScene, GeneratedPage } from '@/lib/contracts';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  validateComponentScene,
+  validateGeneratedPage,
+  type ComponentDelta,
+  type ComponentScene,
+  type GeneratedPage,
+} from '@/lib/contracts';
 import DrawingWorkspace from './DrawingWorkspace';
 
 const previewSizes = [
@@ -13,6 +19,7 @@ const previewSizes = [
 const stageLabels = {
   idle: 'AI ready',
   recognizing: 'Recognizing components',
+  comparing: 'Comparing sketch changes',
   generating: 'Writing HTML & CSS',
   success: 'Preview ready',
   error: 'Needs attention',
@@ -21,6 +28,25 @@ const stageLabels = {
 type GenerationStage = keyof typeof stageLabels;
 type PreviewSize = (typeof previewSizes)[number]['id'];
 type OutputView = 'preview' | 'structure' | 'code';
+
+const OUTPUT_STORAGE_KEY = 'sketchsite-output-v1';
+const PNG_DATA_URL_PATTERN = /^data:image\/png;base64,[A-Za-z0-9+/]+={0,2}$/;
+
+function persistGeneration(
+  scene: ComponentScene,
+  page: GeneratedPage,
+  imageDataUrl: string,
+) {
+  try {
+    localStorage.setItem(
+      OUTPUT_STORAGE_KEY,
+      JSON.stringify({ schemaVersion: '1', scene, page, imageDataUrl }),
+    );
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 const allowedPreviewTags = new Set([
   'main',
@@ -75,7 +101,8 @@ function sanitizeGeneratedHtml(html: string) {
         name === 'id' ||
         name === 'title' ||
         name === 'role' ||
-        name.startsWith('aria-');
+        name.startsWith('aria-') ||
+        name === 'data-component-id';
       const isInputAttribute =
         (tagName === 'input' || tagName === 'textarea') &&
         ['type', 'placeholder', 'value', 'rows', 'cols'].includes(name);
@@ -164,6 +191,10 @@ export default function Home() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [scene, setScene] = useState<ComponentScene | null>(null);
   const [generatedPage, setGeneratedPage] = useState<GeneratedPage | null>(null);
+  const [lastChanges, setLastChanges] = useState<ComponentDelta | null>(null);
+  const [lastSubmittedImage, setLastSubmittedImage] = useState<string | null>(
+    null,
+  );
   const requestSequence = useRef(0);
   const activeRequest = useRef<AbortController | null>(null);
 
@@ -171,7 +202,46 @@ export default function Home() {
     () => buildPreviewDocument(generatedPage),
     [generatedPage],
   );
-  const isGenerating = stage === 'recognizing' || stage === 'generating';
+  const isGenerating =
+    stage === 'recognizing' ||
+    stage === 'comparing' ||
+    stage === 'generating';
+  const canGenerateIncrementally = Boolean(
+    lastSubmittedImage && scene && generatedPage,
+  );
+
+  useEffect(() => {
+    const restoreFrame = window.requestAnimationFrame(() => {
+      try {
+        const storedOutput = localStorage.getItem(OUTPUT_STORAGE_KEY);
+        if (storedOutput) {
+          const value = JSON.parse(storedOutput) as unknown;
+          if (value && typeof value === 'object' && !Array.isArray(value)) {
+            const record = value as Record<string, unknown>;
+            if (record.schemaVersion === '1') {
+              const restoredScene = validateComponentScene(record.scene);
+              const restoredPage = validateGeneratedPage(record.page);
+              const restoredImage = record.imageDataUrl;
+              if (
+                typeof restoredImage === 'string' &&
+                restoredImage.length <= 7_000_000 &&
+                PNG_DATA_URL_PATTERN.test(restoredImage)
+              ) {
+                setScene(restoredScene);
+                setGeneratedPage(restoredPage);
+                setLastSubmittedImage(restoredImage);
+                setStage('success');
+              }
+            }
+          }
+        }
+      } catch {
+        // Ignore invalid local data and start with a clean output state.
+      }
+    });
+
+    return () => window.cancelAnimationFrame(restoreFrame);
+  }, []);
 
   async function generateWebsite(imageDataUrl: string) {
     const requestId = requestSequence.current + 1;
@@ -181,27 +251,86 @@ export default function Home() {
     activeRequest.current = controller;
 
     setErrorMessage(null);
-    setStage('recognizing');
+    const previousScene = scene;
+    const previousPage = generatedPage;
+    const previousImageDataUrl = lastSubmittedImage;
+    const useIncrementalGeneration = Boolean(
+      previousScene && previousPage && previousImageDataUrl,
+    );
+
+    setStage(useIncrementalGeneration ? 'comparing' : 'recognizing');
 
     try {
-      const recognition = await postJson<{ scene: ComponentScene }>(
+      const recognition = await postJson<
+        | { mode: 'full'; scene: ComponentScene }
+        | {
+            mode: 'delta';
+            scene: ComponentScene;
+            changes: ComponentDelta;
+          }
+      >(
         '/api/recognize',
-        { imageDataUrl },
+        useIncrementalGeneration
+          ? {
+              imageDataUrl,
+              previousImageDataUrl,
+              previousScene,
+            }
+          : { imageDataUrl },
+        controller.signal,
+      );
+      if (requestId !== requestSequence.current) return;
+
+      setStage('generating');
+
+      if (
+        recognition.mode === 'delta' &&
+        recognition.changes.added.length === 0 &&
+        recognition.changes.updated.length === 0 &&
+        recognition.changes.deleted.length === 0 &&
+        previousPage
+      ) {
+        setScene(recognition.scene);
+        setLastChanges(recognition.changes);
+        setLastSubmittedImage(imageDataUrl);
+        if (!persistGeneration(recognition.scene, previousPage, imageDataUrl)) {
+          setErrorMessage(
+            'No changes found, but the browser could not save this submission for refresh recovery.',
+          );
+        }
+        setStage('success');
+        return;
+      }
+
+      const generation = await postJson<{ page: GeneratedPage }>(
+        '/api/generate',
+        recognition.mode === 'delta' && previousScene && previousPage
+          ? {
+              changes: recognition.changes,
+              previousScene,
+              previousPage,
+            }
+          : { scene: recognition.scene },
         controller.signal,
       );
       if (requestId !== requestSequence.current) return;
 
       setScene(recognition.scene);
-      setStage('generating');
-
-      const generation = await postJson<{ page: GeneratedPage }>(
-        '/api/generate',
-        { scene: recognition.scene },
-        controller.signal,
-      );
-      if (requestId !== requestSequence.current) return;
-
       setGeneratedPage(generation.page);
+      setLastChanges(
+        recognition.mode === 'delta' ? recognition.changes : null,
+      );
+      setLastSubmittedImage(imageDataUrl);
+      const persisted = persistGeneration(
+        recognition.scene,
+        generation.page,
+        imageDataUrl,
+      );
+      if (!persisted) {
+        setErrorMessage(
+          'Website generated, but the browser could not save it for refresh recovery.',
+        );
+      }
       setOutputView('preview');
       setStage('success');
     } catch (error) {
@@ -254,6 +383,7 @@ export default function Home() {
 
       <section className="workspace" aria-label="SketchSite workspace">
         <DrawingWorkspace
+          hasPreviousSubmission={canGenerateIncrementally}
           isGenerating={isGenerating}
           onExportError={handleExportError}
           onGenerate={generateWebsite}
@@ -328,18 +458,22 @@ export default function Home() {
                 <div className="output-document-heading">
                   <strong>
                     {outputView === 'structure'
-                      ? 'Recognized component JSON'
+                      ? lastChanges
+                        ? 'Latest component changes'
+                        : 'Recognized component JSON'
                       : 'Generated HTML + CSS'}
                   </strong>
                   <span>
                     {outputView === 'structure'
-                      ? `${scene?.components.length ?? 0} components`
+                      ? lastChanges
+                        ? `+${lastChanges.added.length} ~${lastChanges.updated.length} −${lastChanges.deleted.length}`
+                        : `${scene?.components.length ?? 0} components`
                       : generatedPage?.style.name}
                   </span>
                 </div>
                 <pre>
                   {outputView === 'structure'
-                    ? JSON.stringify(scene, null, 2)
+                    ? JSON.stringify(lastChanges ?? scene, null, 2)
                     : `<!-- HTML -->\n${generatedPage?.html ?? ''}\n\n/* CSS */\n${generatedPage?.css ?? ''}`}
                 </pre>
               </div>
@@ -370,7 +504,7 @@ export default function Home() {
         >
           {errorMessage ??
             generatedPage?.style.rationale ??
-            'Kimi Vision reads the sketch into JSON, then Kimi Code chooses a style and writes static HTML/CSS.'}
+            'Kimi Vision compares each submission with the last one, then Kimi Code updates only the added, changed, or deleted components.'}
         </p>
         {generatedPage ? (
           <div

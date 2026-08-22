@@ -69,6 +69,21 @@ export type ComponentScene = {
   components: RecognizedComponent[];
 };
 
+export type DeletedComponent = {
+  id: string;
+  reason: string;
+  confidence: number;
+};
+
+export type ComponentDelta = {
+  schemaVersion: '1';
+  changeSummary: string;
+  pageIntent: ComponentScene['pageIntent'];
+  added: RecognizedComponent[];
+  updated: RecognizedComponent[];
+  deleted: DeletedComponent[];
+};
+
 export type GeneratedPage = {
   schemaVersion: '1';
   style: {
@@ -163,6 +178,51 @@ export const componentSceneJsonSchema = {
     },
   },
   required: ['schemaVersion', 'canvas', 'pageIntent', 'components'],
+} as const;
+
+const recognizedComponentJsonSchema =
+  componentSceneJsonSchema.properties.components.items;
+
+export const componentDeltaJsonSchema = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    schemaVersion: { type: 'string', const: '1' },
+    changeSummary: { type: 'string', minLength: 1, maxLength: 500 },
+    pageIntent: componentSceneJsonSchema.properties.pageIntent,
+    added: {
+      type: 'array',
+      maxItems: 80,
+      items: recognizedComponentJsonSchema,
+    },
+    updated: {
+      type: 'array',
+      maxItems: 80,
+      items: recognizedComponentJsonSchema,
+    },
+    deleted: {
+      type: 'array',
+      maxItems: 80,
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          id: { type: 'string', minLength: 1, maxLength: 80 },
+          reason: { type: 'string', minLength: 1, maxLength: 300 },
+          confidence: { type: 'number', minimum: 0, maximum: 1 },
+        },
+        required: ['id', 'reason', 'confidence'],
+      },
+    },
+  },
+  required: [
+    'schemaVersion',
+    'changeSummary',
+    'pageIntent',
+    'added',
+    'updated',
+    'deleted',
+  ],
 } as const;
 
 export const generatedPageJsonSchema = {
@@ -448,6 +508,186 @@ export function validateComponentScene(value: unknown): ComponentScene {
     canvas: { width: 1000, height: 1000 },
     pageIntent,
     components,
+  };
+}
+
+export function validateComponentDelta(
+  value: unknown,
+  previousSceneValue: unknown,
+): { changes: ComponentDelta; scene: ComponentScene } {
+  const previousScene = validateComponentScene(previousSceneValue);
+  const delta = asRecord(value, 'Component delta');
+  requireExactKeys(
+    delta,
+    [
+      'schemaVersion',
+      'changeSummary',
+      'pageIntent',
+      'added',
+      'updated',
+      'deleted',
+    ],
+    'Component delta',
+  );
+  if (delta.schemaVersion !== '1') {
+    throw new Error('Unsupported component delta schema version.');
+  }
+
+  const pageIntentValue = asRecord(delta.pageIntent, 'Delta page intent');
+  requireExactKeys(
+    pageIntentValue,
+    ['type', 'description', 'confidence'],
+    'Delta page intent',
+  );
+  const pageIntent: ComponentScene['pageIntent'] = {
+    type: asEnum(
+      pageIntentValue.type,
+      PAGE_INTENT_TYPES,
+      'Delta page intent type',
+    ),
+    description: asString(
+      pageIntentValue.description,
+      'Delta page intent description',
+      500,
+      true,
+    ),
+    confidence: asUnitNumber(
+      pageIntentValue.confidence,
+      'Delta page intent confidence',
+    ),
+  };
+
+  if (
+    !Array.isArray(delta.added) ||
+    !Array.isArray(delta.updated) ||
+    !Array.isArray(delta.deleted) ||
+    delta.added.length > 80 ||
+    delta.updated.length > 80 ||
+    delta.deleted.length > 80
+  ) {
+    throw new Error('Component delta arrays are invalid.');
+  }
+
+  const previousById = new Map(
+    previousScene.components.map((component) => [component.id, component]),
+  );
+  const getRawComponentId = (rawValue: unknown, label: string) => {
+    const component = asRecord(rawValue, label);
+    return asString(component.id, `${label} id`, 80);
+  };
+  const addedIds = delta.added.map((item, index) =>
+    getRawComponentId(item, `Added component ${index + 1}`),
+  );
+  const updatedIds = delta.updated.map((item, index) =>
+    getRawComponentId(item, `Updated component ${index + 1}`),
+  );
+
+  const deleted = delta.deleted.map((rawValue, index) => {
+    const item = asRecord(rawValue, `Deleted component ${index + 1}`);
+    requireExactKeys(
+      item,
+      ['id', 'reason', 'confidence'],
+      `Deleted component ${index + 1}`,
+    );
+    return {
+      id: asString(item.id, `Deleted component ${index + 1} id`, 80),
+      reason: asString(
+        item.reason,
+        `Deleted component ${index + 1} reason`,
+        300,
+      ),
+      confidence: asUnitNumber(
+        item.confidence,
+        `Deleted component ${index + 1} confidence`,
+      ),
+    } satisfies DeletedComponent;
+  });
+
+  const allChangeIds = [...addedIds, ...updatedIds, ...deleted.map(({ id }) => id)];
+  if (new Set(allChangeIds).size !== allChangeIds.length) {
+    throw new Error('A component cannot appear in multiple delta operations.');
+  }
+  for (const id of addedIds) {
+    if (previousById.has(id)) {
+      throw new Error(`Added component ${id} already exists.`);
+    }
+  }
+  for (const id of updatedIds) {
+    if (!previousById.has(id)) {
+      throw new Error(`Updated component ${id} does not exist.`);
+    }
+  }
+  for (const item of deleted) {
+    const previousComponent = previousById.get(item.id);
+    if (!previousComponent) {
+      throw new Error(`Deleted component ${item.id} does not exist.`);
+    }
+    if (previousComponent.type === 'page') {
+      throw new Error('The root page component cannot be deleted.');
+    }
+  }
+
+  const updatedIdSet = new Set(updatedIds);
+  const deletedById = new Map(deleted.map((item) => [item.id, item]));
+  let addedCascadeDeletion = true;
+  while (addedCascadeDeletion) {
+    addedCascadeDeletion = false;
+    for (const component of previousScene.components) {
+      if (
+        component.type === 'page' ||
+        updatedIdSet.has(component.id) ||
+        deletedById.has(component.id) ||
+        !component.parentId ||
+        !deletedById.has(component.parentId)
+      ) {
+        continue;
+      }
+      deletedById.set(component.id, {
+        id: component.id,
+        reason: 'Parent component was deleted from the sketch.',
+        confidence: 1,
+      });
+      addedCascadeDeletion = true;
+    }
+  }
+
+  const nextById = new Map<string, unknown>(previousById);
+  for (const id of deletedById.keys()) {
+    nextById.delete(id);
+  }
+  delta.updated.forEach((component, index) => {
+    nextById.set(updatedIds[index], component);
+  });
+  delta.added.forEach((component, index) => {
+    nextById.set(addedIds[index], component);
+  });
+
+  const scene = validateComponentScene({
+    schemaVersion: '1',
+    canvas: { width: 1000, height: 1000 },
+    pageIntent,
+    components: [...nextById.values()],
+  });
+  const nextComponentsById = new Map(
+    scene.components.map((component) => [component.id, component]),
+  );
+  const added = addedIds.map((id) => nextComponentsById.get(id)!);
+  const updated = updatedIds.map((id) => nextComponentsById.get(id)!);
+
+  return {
+    scene,
+    changes: {
+      schemaVersion: '1',
+      changeSummary: asString(
+        delta.changeSummary,
+        'Component delta summary',
+        500,
+      ),
+      pageIntent,
+      added,
+      updated,
+      deleted: [...deletedById.values()],
+    },
   };
 }
 

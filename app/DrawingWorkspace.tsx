@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  useEffect,
   useRef,
   useState,
   type PointerEvent as ReactPointerEvent,
@@ -46,10 +47,13 @@ type CanvasItem = PenItem | LineItem | FrameItem | TextItem;
 type DrawableItem = PenItem | LineItem | FrameItem;
 
 type DrawingWorkspaceProps = {
+  hasPreviousSubmission: boolean;
   isGenerating: boolean;
   onExportError: (message: string) => void;
   onGenerate: (imageDataUrl: string) => Promise<void>;
 };
+
+const CANVAS_STORAGE_KEY = 'sketchsite-canvas-v1';
 
 type DrawGesture = {
   kind: 'draw';
@@ -92,6 +96,83 @@ const toolOptions: Array<{ id: Tool; label: string }> = [
 ];
 
 let itemSequence = 0;
+
+function isStoredPoint(value: unknown): value is Point {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const point = value as Record<string, unknown>;
+  return (
+    typeof point.x === 'number' &&
+    Number.isFinite(point.x) &&
+    point.x >= 0 &&
+    point.x <= 1 &&
+    typeof point.y === 'number' &&
+    Number.isFinite(point.y) &&
+    point.y >= 0 &&
+    point.y <= 1 &&
+    typeof point.timestamp === 'number' &&
+    Number.isFinite(point.timestamp) &&
+    (point.pressure === undefined ||
+      (typeof point.pressure === 'number' && Number.isFinite(point.pressure)))
+  );
+}
+
+function parseStoredCanvasItems(value: unknown): CanvasItem[] | null {
+  if (!Array.isArray(value) || value.length > 500) return null;
+
+  const items: CanvasItem[] = [];
+  for (const rawItem of value) {
+    if (!rawItem || typeof rawItem !== 'object' || Array.isArray(rawItem)) {
+      return null;
+    }
+    const item = rawItem as Record<string, unknown>;
+    if (typeof item.id !== 'string' || item.id.length > 100) return null;
+
+    if (item.kind === 'pen') {
+      if (
+        !Array.isArray(item.points) ||
+        item.points.length < 1 ||
+        item.points.length > 10000 ||
+        !item.points.every(isStoredPoint)
+      ) {
+        return null;
+      }
+      items.push({ id: item.id, kind: 'pen', points: item.points });
+      continue;
+    }
+
+    if (item.kind === 'line' || item.kind === 'frame') {
+      if (!isStoredPoint(item.start) || !isStoredPoint(item.end)) return null;
+      items.push({
+        id: item.id,
+        kind: item.kind,
+        start: item.start,
+        end: item.end,
+      });
+      continue;
+    }
+
+    if (item.kind === 'text') {
+      if (
+        !isStoredPoint(item.position) ||
+        typeof item.content !== 'string' ||
+        item.content.length > 500
+      ) {
+        return null;
+      }
+      items.push({
+        id: item.id,
+        kind: 'text',
+        position: item.position,
+        content: item.content,
+      });
+      continue;
+    }
+
+    return null;
+  }
+
+  return items;
+}
 
 function createItemId(kind: CanvasItem['kind']) {
   itemSequence += 1;
@@ -408,6 +489,7 @@ function exportSvgAsPng(svg: SVGSVGElement) {
 }
 
 export default function DrawingWorkspace({
+  hasPreviousSubmission,
   isGenerating,
   onExportError,
   onGenerate,
@@ -420,9 +502,40 @@ export default function DrawingWorkspace({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [textValue, setTextValue] = useState('Text');
   const [isExporting, setIsExporting] = useState(false);
+  const [hasLoadedStoredCanvas, setHasLoadedStoredCanvas] = useState(false);
   const itemsRef = useRef<CanvasItem[]>([]);
   const gestureRef = useRef<Gesture | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
+
+  useEffect(() => {
+    const restoreFrame = window.requestAnimationFrame(() => {
+      try {
+        const storedValue = localStorage.getItem(CANVAS_STORAGE_KEY);
+        if (storedValue !== null) {
+          const restoredItems = parseStoredCanvasItems(JSON.parse(storedValue));
+          if (restoredItems) {
+            itemsRef.current = restoredItems;
+            setItems(restoredItems);
+          }
+        }
+      } catch {
+        // Ignore corrupted or unavailable local storage and keep a blank canvas.
+      } finally {
+        setHasLoadedStoredCanvas(true);
+      }
+    });
+
+    return () => window.cancelAnimationFrame(restoreFrame);
+  }, []);
+
+  useEffect(() => {
+    if (!hasLoadedStoredCanvas) return;
+    try {
+      localStorage.setItem(CANVAS_STORAGE_KEY, JSON.stringify(items));
+    } catch {
+      // The editor remains usable if the browser refuses local persistence.
+    }
+  }, [hasLoadedStoredCanvas, items]);
 
   function updateItems(nextItems: CanvasItem[]) {
     itemsRef.current = nextItems;
@@ -687,7 +800,7 @@ export default function DrawingWorkspace({
 
   async function generateWebsite() {
     if (
-      itemsRef.current.length === 0 ||
+      (itemsRef.current.length === 0 && !hasPreviousSubmission) ||
       gestureRef.current ||
       !svgRef.current ||
       isExporting ||
@@ -725,7 +838,9 @@ export default function DrawingWorkspace({
             aria-busy={isExporting || isGenerating}
             className="generate-button"
             disabled={
-              items.length === 0 || isExporting || isGenerating
+              (items.length === 0 && !hasPreviousSubmission) ||
+              isExporting ||
+              isGenerating
             }
             onClick={generateWebsite}
             type="button"
@@ -800,7 +915,11 @@ export default function DrawingWorkspace({
               <span />
             </div>
             <h2>Your canvas is ready</h2>
-            <p>Choose a tool, then draw or place an element.</p>
+            <p>
+              {hasPreviousSubmission
+                ? 'Generate this blank canvas to remove the previous components.'
+                : 'Choose a tool, then draw or place an element.'}
+            </p>
           </div>
         )}
 

@@ -19,6 +19,7 @@ type KimiJsonRequest = {
   schemaName: string;
   schema: Record<string, unknown>;
   maxTokens: number;
+  retryMaxTokens?: number;
   reasoningEffort?: 'low' | 'high' | 'max';
 };
 
@@ -100,16 +101,41 @@ function mapUpstreamError(status: number) {
   );
 }
 
-export async function requestKimiJson({
+function parseStructuredContent(content: string) {
+  const trimmedContent = content.trim();
+
+  try {
+    return JSON.parse(trimmedContent) as unknown;
+  } catch {
+    const fencedJsonMatch =
+      /^```(?:json)?[ \t]*\r?\n([\s\S]*?)\r?\n```[ \t]*$/i.exec(trimmedContent);
+
+    if (fencedJsonMatch) {
+      try {
+        return JSON.parse(fencedJsonMatch[1]) as unknown;
+      } catch {
+        // The complete outer fence is tolerated, but incomplete JSON is not repaired.
+      }
+    }
+
+    throw new KimiRequestError(
+      'KIMI_INVALID_JSON',
+      502,
+      'Kimi 返回的结构化结果无效，请重试。',
+    );
+  }
+}
+
+async function requestKimiJsonAttempt({
   model,
   messages,
   schemaName,
   schema,
   maxTokens,
   reasoningEffort,
-}: KimiJsonRequest) {
+}: Omit<KimiJsonRequest, 'retryMaxTokens'>) {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 90000);
+  const timeout = setTimeout(() => controller.abort(), 120000);
 
   try {
     const response = await fetch(`${getBaseUrl()}/chat/completions`, {
@@ -140,7 +166,7 @@ export async function requestKimiJson({
     }
 
     const rawResponse = await response.text();
-    if (rawResponse.length > 350000) {
+    if (rawResponse.length > 800000) {
       throw new KimiRequestError(
         'KIMI_RESPONSE_TOO_LARGE',
         502,
@@ -177,15 +203,7 @@ export async function requestKimiJson({
       );
     }
 
-    try {
-      return JSON.parse(content) as unknown;
-    } catch {
-      throw new KimiRequestError(
-        'KIMI_INVALID_JSON',
-        502,
-        'Kimi 返回的结构化结果无效，请重试。',
-      );
-    }
+    return parseStructuredContent(content);
   } catch (error) {
     if (error instanceof KimiRequestError) {
       throw error;
@@ -204,6 +222,46 @@ export async function requestKimiJson({
     );
   } finally {
     clearTimeout(timeout);
+  }
+}
+
+export async function requestKimiJson({
+  model,
+  messages,
+  schemaName,
+  schema,
+  maxTokens,
+  retryMaxTokens,
+  reasoningEffort,
+}: KimiJsonRequest) {
+  const retryableCodes = new Set([
+    'KIMI_INVALID_JSON',
+    'KIMI_OUTPUT_TRUNCATED',
+    'KIMI_EMPTY_RESPONSE',
+  ]);
+
+  try {
+    return await requestKimiJsonAttempt({
+      model,
+      messages,
+      schemaName,
+      schema,
+      maxTokens,
+      reasoningEffort,
+    });
+  } catch (error) {
+    if (!(error instanceof KimiRequestError) || !retryableCodes.has(error.code)) {
+      throw error;
+    }
+
+    return requestKimiJsonAttempt({
+      model,
+      messages,
+      schemaName,
+      schema,
+      maxTokens: Math.max(maxTokens, retryMaxTokens ?? maxTokens),
+      reasoningEffort,
+    });
   }
 }
 
