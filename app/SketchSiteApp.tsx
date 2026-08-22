@@ -1030,16 +1030,6 @@ export default function SketchSiteApp() {
     });
   }
 
-  function recognizeNow() {
-    recognitionRevision.current += 1;
-    if (activePage.canvasItems.length === 0) {
-      setRecognitionStatus('idle');
-      return;
-    }
-    updateActivePage((page) => ({ ...page, primitives: recognizeCanvas(page.canvasItems) }));
-    setRecognitionStatus('ready');
-  }
-
   async function handleGenerateCss() {
     const brief = designPrompt.trim();
     if (brief.length < 3) return;
@@ -1216,9 +1206,6 @@ export default function SketchSiteApp() {
             )}
           </form>
         </div>
-        <button disabled={activePage.canvasItems.length === 0} onClick={recognizeNow} type="button">
-          Recognize now
-        </button>
       </aside>
     </main>
   );
