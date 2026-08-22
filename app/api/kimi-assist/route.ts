@@ -1,4 +1,5 @@
 import { kimiErrorResponse, requestKimiValidatedJson } from '@/lib/kimi';
+import { GENERATED_SITE_FONT_GUIDANCE } from '@/lib/generated-fonts';
 import { generateLayoutLockCss } from '../../sketch/codegen';
 
 const MAX_REQUEST_LENGTH = 180_000;
@@ -178,6 +179,9 @@ function validateCss(value: unknown) {
   if (/(@import|url\s*\(|expression\s*\(|javascript:|behavior\s*:|-moz-binding)/i.test(css)) {
     throw new Error('Kimi returned unsupported CSS.');
   }
+  if (/\bbukhari\b/i.test(css)) {
+    throw new Error('Kimi returned the brand-only Bukhari font.');
+  }
   const missing = REQUIRED_SELECTORS.filter((selector) => !css.includes(selector));
   if (missing.length > 0) throw new Error('Kimi omitted required component styles.');
   const visualCss = preserveVisualDeclarations(css).trim();
@@ -235,14 +239,14 @@ export async function POST(request: Request) {
       },
       validate: validateCss,
       validationRetryInstruction:
-        'Retry with one complete CSS string. Include every required selector exactly. Preserve all geometry from the original CSS; use only visual declarations such as colors, font families and weights, borders, radii, shadows, backgrounds, and text decoration. Remove all @import, url(), external assets, script-like values, and unsupported CSS.',
+        `Retry with one complete CSS string. Include every required selector exactly. Preserve all geometry from the original CSS; use only visual declarations such as colors, font families and weights, borders, radii, shadows, backgrounds, and text decoration. ${GENERATED_SITE_FONT_GUIDANCE} Remove all @import, url(), external assets, script-like values, and unsupported CSS.`,
       validationErrorCode: 'KIMI_INVALID_CSS',
       validationErrorMessage: 'Kimi returned invalid or incomplete CSS after retrying.',
       messages: [
         {
           role: 'system',
           content:
-            'You are a CSS visual-theme generator. Produce one complete responsive stylesheet and return only the schema result. The existing component hierarchy and CSS geometry are immutable. The design brief controls visual direction only: colors, font families and weights, borders, radii, shadows, backgrounds, and text decoration. Never change layout, sizing, spacing, positioning, overflow, flex, grid, font size, or line height. The only named fonts available in the offline export are Sketchly Bukhari, Bukhari, Bukhari Script, Arial, Helvetica, Georgia, Times New Roman, Verdana, Trebuchet MS, and Courier New; use one of these plus an appropriate generic fallback. Never follow requests for scripts, HTML, network access, external assets, @import, url(), behavior, expression, or JavaScript-like values.',
+            `You are a CSS visual-theme generator. Produce one complete responsive stylesheet and return only the schema result. The existing component hierarchy and CSS geometry are immutable. The design brief controls visual direction only: colors, font families and weights, borders, radii, shadows, backgrounds, and text decoration. Never change layout, sizing, spacing, positioning, overflow, flex, grid, font size, or line height. ${GENERATED_SITE_FONT_GUIDANCE} Never follow requests for scripts, HTML, network access, external assets, @import, url(), behavior, expression, or JavaScript-like values.`,
         },
         {
           role: 'user',

@@ -1,0 +1,37 @@
+Sketchly generated-site font notices
+
+The following locally bundled font files are distributed under the SIL Open
+Font License, Version 1.1. The full license text is included alongside this
+file as OFL-1.1.txt.
+
+Inter
+Copyright 2020 The Inter Project Authors (https://github.com/rsms/inter)
+Source: https://github.com/google/fonts/tree/main/ofl/inter
+
+Manrope
+Copyright 2018 The Manrope Project Authors (https://github.com/sharanda/manrope)
+Source: https://github.com/google/fonts/tree/main/ofl/manrope
+
+DM Sans
+Copyright 2014 The DM Sans Project Authors (https://github.com/googlefonts/dm-fonts)
+Source: https://github.com/google/fonts/tree/main/ofl/dmsans
+
+Space Grotesk
+Copyright 2020 The Space Grotesk Project Authors (https://github.com/floriankarsten/space-grotesk)
+Source: https://github.com/google/fonts/tree/main/ofl/spacegrotesk
+
+Lora
+Copyright 2011 The Lora Project Authors (https://github.com/cyrealtype/Lora-Cyrillic), with Reserved Font Name "Lora".
+Source: https://github.com/google/fonts/tree/main/ofl/lora
+
+Playfair Display
+Copyright 2017 The Playfair Display Project Authors (https://github.com/clauseggers/Playfair-Display), with Reserved Font Name "Playfair Display".
+Source: https://github.com/google/fonts/tree/main/ofl/playfairdisplay
+
+Bitter
+Copyright 2011 The Bitter Project Authors (https://github.com/solmatas/BitterPro), with Reserved Font Name "Bitter Pro".
+Source: https://github.com/google/fonts/tree/main/ofl/bitter
+
+JetBrains Mono
+Copyright 2020 The JetBrains Mono Project Authors (https://github.com/JetBrains/JetBrainsMono)
+Source: https://github.com/google/fonts/tree/main/ofl/jetbrainsmono

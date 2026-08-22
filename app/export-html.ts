@@ -1,4 +1,8 @@
 import JSZip from 'jszip';
+import {
+  buildGeneratedSiteFontCss,
+  GENERATED_SITE_FONTS,
+} from '@/lib/generated-fonts';
 
 export type WebsiteExportFile = {
   name: string;
@@ -6,42 +10,25 @@ export type WebsiteExportFile = {
 };
 
 const bundledExportAssets = [
-  {
-    source: '/fonts/bukhari-script.woff',
-    name: 'assets/bukhari-script.woff',
+  ...GENERATED_SITE_FONTS.map((font) => ({
+    source: `/fonts/generated/${font.filename}`,
+    name: `assets/fonts/${font.filename}`,
     binary: true,
+  } as const)),
+  {
+    source: '/fonts/generated/OFL-1.1.txt',
+    name: 'assets/fonts/OFL-1.1.txt',
+    binary: false,
   },
   {
-    source: '/fonts/bukhari-script-license.txt',
-    name: 'assets/bukhari-script-license.txt',
+    source: '/fonts/generated/font-notices.txt',
+    name: 'assets/fonts/FONT-NOTICES.txt',
     binary: false,
   },
 ] as const;
 
-const bundledFontCss = `/* Font packaged with this export for offline use. */
-@font-face {
-  font-family: 'Sketchly Bukhari';
-  src: url('./assets/bukhari-script.woff') format('woff');
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: 'Bukhari';
-  src: url('./assets/bukhari-script.woff') format('woff');
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: 'Bukhari Script';
-  src: url('./assets/bukhari-script.woff') format('woff');
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-}`;
+const bundledFontCss = `/* Fonts packaged with this export for offline use. */
+${buildGeneratedSiteFontCss((filename) => `./assets/fonts/${filename}`)}`;
 
 export function buildExportStylesheet(css: string, baseCss?: string) {
   const layers = baseCss && baseCss.trim() !== css.trim()

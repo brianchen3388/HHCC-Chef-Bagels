@@ -748,6 +748,9 @@ export function validateGeneratedPage(value: unknown): GeneratedPage {
   ) {
     throw new Error('Generated CSS contains unsupported external or active content.');
   }
+  if (/\bbukhari\b/i.test(css)) {
+    throw new Error('Generated CSS contains the brand-only Bukhari font.');
+  }
 
   return {
     schemaVersion: '1',

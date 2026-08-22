@@ -11,6 +11,7 @@ import {
   type MouseEvent as ReactMouseEvent,
 } from 'react';
 import DrawingWorkspace from './DrawingWorkspace';
+import { buildGeneratedSiteFontCss } from '@/lib/generated-fonts';
 import {
   buildExportStylesheet,
   buildHtmlDocument,
@@ -151,6 +152,10 @@ const previewLayoutLockCss = `
 .preview-viewport.mobile .generated-site-preview .generated-card-grid { grid-template-columns: 1fr; }
 .preview-viewport.mobile .generated-site-preview .generated-spatial-row:not(.single) { flex-wrap: wrap; }
 `;
+
+const generatedPreviewFontCss = buildGeneratedSiteFontCss(
+  (filename) => `/fonts/generated/${filename}`,
+);
 
 function scopeGeneratedCss(css: string) {
   const scopedSelectors = css
@@ -389,6 +394,7 @@ function GeneratedPreview({
 
   return (
     <div className="generated-site-preview" id="geometric-export-root">
+      <style>{generatedPreviewFontCss}</style>
       {customCss && <style>{scopeGeneratedCss(customCss)}</style>}
       <div className="generated-page-layout site">
         <GeneratedRows

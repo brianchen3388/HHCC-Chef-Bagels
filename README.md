@@ -21,6 +21,11 @@ Open `http://localhost:3000`, then choose AI API or Geometric on the homepage.
 
 Kimi is required for the AI API editor and optional for CSS redesign in the geometric editor. Copy `.env.example` to `.env.local` and set `MOONSHOT_API_KEY`. Without a key, the geometric recognizer and original local CSS remain usable.
 
+Generated themes can use Inter, Manrope, DM Sans, Space Grotesk, Lora,
+Playfair Display, Bitter, and JetBrains Mono. These fonts and their license
+notices are bundled locally and included in exported ZIPs. Bukhari remains
+reserved for the Sketchly brand rather than generated website content.
+
 ## Validate
 
 ```bash

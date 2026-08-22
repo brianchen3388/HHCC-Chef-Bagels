@@ -11,6 +11,7 @@ import {
   type GeneratedPage,
 } from '@/lib/contracts';
 import DrawingWorkspace from './AiDrawingWorkspace';
+import { buildGeneratedSiteFontCss } from '@/lib/generated-fonts';
 import {
   buildExportStylesheet,
   buildHtmlDocument,
@@ -171,7 +172,9 @@ function buildPreviewDocument(page: GeneratedPage | null) {
     "form-action 'none'",
   ].join('; ');
 
-  const previewFontCss = "@font-face{font-family:'Sketchly Bukhari';src:url('/fonts/bukhari-script.woff') format('woff');font-style:normal;font-weight:400;font-display:swap}@font-face{font-family:'Bukhari';src:url('/fonts/bukhari-script.woff') format('woff');font-style:normal;font-weight:400;font-display:swap}@font-face{font-family:'Bukhari Script';src:url('/fonts/bukhari-script.woff') format('woff');font-style:normal;font-weight:400;font-display:swap}";
+  const previewFontCss = buildGeneratedSiteFontCss(
+    (filename) => `/fonts/generated/${filename}`,
+  );
   const editorCss = '[data-component-id]{cursor:pointer}[data-component-id]:hover,[data-editor-selected]{outline:2px solid #3ba568!important;outline-offset:2px}';
   return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta http-equiv="Content-Security-Policy" content="${csp}"><style>${previewFontCss}\n${safeCss}\n${editorCss}</style></head><body>${safeHtml}</body></html>`;
 }
