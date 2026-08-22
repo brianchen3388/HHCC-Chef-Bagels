@@ -269,7 +269,7 @@ footer { display: flex; align-items: center; gap: 20px; padding: 32px 6vw; color
 }
 
 export function generateLayoutLockCss() {
-  return `/* SketchSite structural layout lock: visual themes must not alter geometry. */
+  return `/* Sketchly structural layout lock: visual themes must not alter geometry. */
 * { box-sizing: border-box; }
 html, body { margin: 0; }
 body { font-size: 16px; line-height: 1.5; }

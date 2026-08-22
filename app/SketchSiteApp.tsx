@@ -1076,7 +1076,7 @@ export default function SketchSiteApp() {
   function exportWebsite() {
     const siteRoot = document.querySelector<HTMLElement>('#geometric-export-root .site');
     if (!siteRoot) return;
-    downloadHtmlFile('sketchsite-geometric.html', siteRoot.outerHTML, cssCode);
+    downloadHtmlFile('sketchly-geometric.html', siteRoot.outerHTML, cssCode);
   }
 
   const confidentCount = activePage.primitives.filter(
@@ -1086,9 +1086,9 @@ export default function SketchSiteApp() {
   return (
     <main className="app-shell">
       <header className="topbar">
-        <Link className="brand" href="/" aria-label="SketchSite home">
-          <span className="brand-mark" aria-hidden="true">S</span>
-          <span>SketchSite</span>
+        <Link className="brand" href="/" aria-label="Sketchly home">
+          <span className="brand-mark" aria-hidden="true" />
+          <span className="brand-title">Sketchly</span>
           <span className="brand-mode">Realtime Mode</span>
         </Link>
 
@@ -1116,7 +1116,7 @@ export default function SketchSiteApp() {
         </nav>
       </header>
 
-      <section className="workspace" aria-label="SketchSite workspace">
+      <section className="workspace" aria-label="Sketchly workspace">
         <DrawingWorkspace
           items={activePage.canvasItems}
           onItemsChange={handleCanvasItemsChange}

@@ -3,17 +3,20 @@ import Link from 'next/link';
 export default function Home() {
   return (
     <main className="mode-home">
-      <nav className="mode-home-nav" aria-label="SketchSite home">
+      <nav className="mode-home-nav" aria-label="Sketchly home">
         <Link className="brand" href="/">
-          <span className="brand-mark" aria-hidden="true">S</span>
-          <span>SketchSite</span>
+          <span className="brand-mark" aria-hidden="true" />
+          <span className="brand-title">Sketchly</span>
         </Link>
-        <span>Sketch once. Build your way.</span>
+        <span className="home-tagline">Sketch once. Build your way.</span>
       </nav>
 
       <section className="mode-hero">
         <p className="eyebrow">Wireframe to website</p>
-        <h1>Choose how your sketch becomes a site.</h1>
+        <h1>
+          Draw the idea.<br />
+          <span>Build the site.</span>
+        </h1>
         <p>
           Choose a polished AI-generated result or a fast, direct workflow where
           every canvas change immediately shapes the final structure.

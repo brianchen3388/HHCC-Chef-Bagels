@@ -443,15 +443,15 @@ export default function Home() {
 
   function exportWebsite() {
     if (!generatedPage) return;
-    downloadHtmlFile('sketchsite-ai.html', generatedPage.html, generatedPage.css);
+    downloadHtmlFile('sketchly-ai.html', generatedPage.html, generatedPage.css);
   }
 
   return (
     <main className="app-shell">
       <header className="topbar">
-        <Link className="brand" href="/" aria-label="SketchSite home">
-          <span className="brand-mark" aria-hidden="true">S</span>
-          <span>SketchSite</span>
+        <Link className="brand" href="/" aria-label="Sketchly home">
+          <span className="brand-mark" aria-hidden="true" />
+          <span className="brand-title">Sketchly</span>
           <span className="brand-mode">Generative Mode</span>
         </Link>
 
@@ -475,7 +475,7 @@ export default function Home() {
         </nav>
       </header>
 
-      <section className="workspace" aria-label="SketchSite workspace">
+      <section className="workspace" aria-label="Sketchly workspace">
         <DrawingWorkspace
           hasPreviousSubmission={canGenerateIncrementally}
           isGenerating={isGenerating}

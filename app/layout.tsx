@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
+import './hud-theme.css';
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -13,9 +14,35 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'SketchSite — Wireframe to website',
+  metadataBase: new URL('https://sketchsite-chef-bagels.howardhuang.chatgpt.site'),
+  title: 'Sketchly — Wireframe to website',
   description:
     'Sketch a website wireframe and turn it into a polished responsive page.',
+  icons: {
+    icon: '/icon.jpg',
+    apple: '/icon.jpg',
+  },
+  openGraph: {
+    title: 'Sketchly — Wireframe to website',
+    description:
+      'Draw a wireframe and turn it into a polished responsive website.',
+    type: 'website',
+    images: [
+      {
+        url: '/og.png',
+        width: 1730,
+        height: 909,
+        alt: 'Sketchly turns a drawn wireframe into a finished website.',
+      },
+    ],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Sketchly — Wireframe to website',
+    description:
+      'Draw a wireframe and turn it into a polished responsive website.',
+    images: ['/og.png'],
+  },
 };
 
 export default function RootLayout({
