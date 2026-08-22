@@ -433,9 +433,14 @@ function axisOverlapRatio(
 function rectangleRelationship(first: Bounds, second: Bounds) {
   const xOverlap = axisOverlapRatio(first.x, first.width, second.x, second.width);
   const yOverlap = axisOverlapRatio(first.y, first.height, second.y, second.height);
+  const firstCenter = boundsCenter(first);
+  const secondCenter = boundsCenter(second);
+  const xDistance = Math.abs(firstCenter.x - secondCenter.x);
+  const yDistance = Math.abs(firstCenter.y - secondCenter.y) * CANVAS_PAGE_RATIO;
   return {
-    horizontal: yOverlap > xOverlap,
-    horizontalStrength: yOverlap - xOverlap,
+    horizontal: yOverlap === xOverlap ? yDistance <= xDistance : yOverlap > xOverlap,
+    overlapAmount: Math.max(xOverlap, yOverlap),
+    distance: Math.hypot(xDistance, yDistance),
   };
 }
 
@@ -619,38 +624,97 @@ export function inferWebsite(
     const spatialOrder = [...children].sort(
       (first, second) => first.bounds.y - second.bounds.y || first.bounds.x - second.bounds.x,
     );
-    const rows: WebsiteNode[][] = [];
+    const groupParent = new Map(children.map((child) => [child.id, child.id]));
+    const findGroup = (id: string): string => {
+      const parent = groupParent.get(id) ?? id;
+      if (parent === id) return id;
+      const root = findGroup(parent);
+      groupParent.set(id, root);
+      return root;
+    };
+    const joinGroups = (firstId: string, secondId: string) => {
+      const firstRoot = findGroup(firstId);
+      const secondRoot = findGroup(secondId);
+      if (firstRoot !== secondRoot) groupParent.set(secondRoot, firstRoot);
+    };
 
-    spatialOrder.forEach((child) => {
-      const childCenter = boundsCenter(child.bounds);
-      let bestRow: WebsiteNode[] | null = null;
-      let bestOverlapStrength = 0;
-      let bestDistance = Number.POSITIVE_INFINITY;
+    // Every candidate here is a direct child of the same parent. Each child ranks
+    // all siblings once by overlap and once by distance, with equal rank weight.
+    children.forEach((child) => {
+      const comparisons = children
+        .filter((candidate) => candidate.id !== child.id)
+        .map((candidate) => ({
+          candidate,
+          relationship: rectangleRelationship(child.bounds, candidate.bounds),
+        }));
+      if (comparisons.length === 0) return;
 
-      rows.forEach((row) => {
-        row.forEach((candidate) => {
-          const relationship = rectangleRelationship(child.bounds, candidate.bounds);
-          if (!relationship.horizontal) return;
-          const candidateCenter = boundsCenter(candidate.bounds);
-          const pairDistance = Math.hypot(
-            childCenter.x - candidateCenter.x,
-            (childCenter.y - candidateCenter.y) * CANVAS_PAGE_RATIO,
-          );
-          if (
-            relationship.horizontalStrength > bestOverlapStrength ||
-            (relationship.horizontalStrength === bestOverlapStrength && pairDistance < bestDistance)
-          ) {
-            bestRow = row;
-            bestOverlapStrength = relationship.horizontalStrength;
-            bestDistance = pairDistance;
-          }
-        });
+      const overlapOrder = [...comparisons].sort(
+        (first, second) =>
+          second.relationship.overlapAmount - first.relationship.overlapAmount ||
+          first.relationship.distance - second.relationship.distance ||
+          Number(second.relationship.horizontal) - Number(first.relationship.horizontal) ||
+          first.candidate.id.localeCompare(second.candidate.id),
+      );
+      const distanceOrder = [...comparisons].sort(
+        (first, second) =>
+          first.relationship.distance - second.relationship.distance ||
+          second.relationship.overlapAmount - first.relationship.overlapAmount ||
+          Number(second.relationship.horizontal) - Number(first.relationship.horizontal) ||
+          first.candidate.id.localeCompare(second.candidate.id),
+      );
+      const overlapRank = new Map<string, number>();
+      const distanceRank = new Map<string, number>();
+      let currentOverlapRank = 0;
+      let currentDistanceRank = 0;
+      overlapOrder.forEach((comparison, index) => {
+        if (
+          index > 0 &&
+          Math.abs(
+            comparison.relationship.overlapAmount -
+              overlapOrder[index - 1].relationship.overlapAmount,
+          ) > 0.000001
+        ) {
+          currentOverlapRank = index;
+        }
+        overlapRank.set(comparison.candidate.id, currentOverlapRank);
       });
+      distanceOrder.forEach((comparison, index) => {
+        if (
+          index > 0 &&
+          Math.abs(
+            comparison.relationship.distance - distanceOrder[index - 1].relationship.distance,
+          ) > 0.000001
+        ) {
+          currentDistanceRank = index;
+        }
+        distanceRank.set(comparison.candidate.id, currentDistanceRank);
+      });
+      const winner = [...comparisons].sort((first, second) => {
+        const firstRank = (overlapRank.get(first.candidate.id) ?? 0) +
+          (distanceRank.get(first.candidate.id) ?? 0);
+        const secondRank = (overlapRank.get(second.candidate.id) ?? 0) +
+          (distanceRank.get(second.candidate.id) ?? 0);
+        return (
+          firstRank - secondRank ||
+          second.relationship.overlapAmount - first.relationship.overlapAmount ||
+          first.relationship.distance - second.relationship.distance ||
+          Number(second.relationship.horizontal) - Number(first.relationship.horizontal) ||
+          first.candidate.id.localeCompare(second.candidate.id)
+        );
+      })[0];
 
-      const targetRow = bestRow as WebsiteNode[] | null;
-      if (targetRow) targetRow.push(child);
-      else rows.push([child]);
+      if (winner.relationship.horizontal) joinGroups(child.id, winner.candidate.id);
     });
+
+    const rowsByGroup = new Map<string, WebsiteNode[]>();
+    spatialOrder.forEach((child) => {
+      const root = findGroup(child.id);
+      const row = rowsByGroup.get(root) ?? [];
+      row.push(child);
+      rowsByGroup.set(root, row);
+    });
+    const rows = [...rowsByGroup.values()];
 
     rows.forEach((row) =>
       row.sort((first, second) => first.bounds.x - second.bounds.x),
