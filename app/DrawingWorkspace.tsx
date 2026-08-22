@@ -49,6 +49,7 @@ type DrawableItem = PenItem | LineItem | FrameItem;
 type DrawingWorkspaceProps = {
   hasPreviousSubmission: boolean;
   isGenerating: boolean;
+  onClear: () => void;
   onExportError: (message: string) => void;
   onGenerate: (imageDataUrl: string) => Promise<void>;
 };
@@ -491,6 +492,7 @@ function exportSvgAsPng(svg: SVGSVGElement) {
 export default function DrawingWorkspace({
   hasPreviousSubmission,
   isGenerating,
+  onClear,
   onExportError,
   onGenerate,
 }: DrawingWorkspaceProps) {
@@ -796,6 +798,7 @@ export default function DrawingWorkspace({
 
     commitItems([]);
     setSelectedId(null);
+    onClear();
   }
 
   async function generateWebsite() {

@@ -32,6 +32,21 @@ type OutputView = 'preview' | 'structure' | 'code';
 const OUTPUT_STORAGE_KEY = 'sketchsite-output-v1';
 const PNG_DATA_URL_PATTERN = /^data:image\/png;base64,[A-Za-z0-9+/]+={0,2}$/;
 
+function replacesEntireTopic(
+  previousScene: ComponentScene,
+  changes: ComponentDelta,
+) {
+  const previousIds = previousScene.components
+    .filter((component) => component.type !== 'page')
+    .map((component) => component.id);
+  const deletedIds = new Set(changes.deleted.map(({ id }) => id));
+  return (
+    changes.added.length > 0 &&
+    previousIds.length > 0 &&
+    previousIds.every((id) => deletedIds.has(id))
+  );
+}
+
 function persistGeneration(
   scene: ComponentScene,
   page: GeneratedPage,
@@ -195,6 +210,7 @@ export default function Home() {
   const [lastSubmittedImage, setLastSubmittedImage] = useState<string | null>(
     null,
   );
+  const [stylePrompt, setStylePrompt] = useState('');
   const requestSequence = useRef(0);
   const activeRequest = useRef<AbortController | null>(null);
 
@@ -207,7 +223,9 @@ export default function Home() {
     stage === 'comparing' ||
     stage === 'generating';
   const canGenerateIncrementally = Boolean(
-    lastSubmittedImage && scene && generatedPage,
+    lastSubmittedImage &&
+    scene?.components.some((component) => component.type !== 'page') &&
+    generatedPage,
   );
 
   useEffect(() => {
@@ -254,8 +272,11 @@ export default function Home() {
     const previousScene = scene;
     const previousPage = generatedPage;
     const previousImageDataUrl = lastSubmittedImage;
+    const requestedStyle = stylePrompt.trim();
     const useIncrementalGeneration = Boolean(
-      previousScene && previousPage && previousImageDataUrl,
+      previousScene?.components.some((component) => component.type !== 'page') &&
+      previousPage &&
+      previousImageDataUrl,
     );
 
     setStage(useIncrementalGeneration ? 'comparing' : 'recognizing');
@@ -288,7 +309,8 @@ export default function Home() {
         recognition.changes.added.length === 0 &&
         recognition.changes.updated.length === 0 &&
         recognition.changes.deleted.length === 0 &&
-        previousPage
+        previousPage &&
+        !requestedStyle
       ) {
         setScene(recognition.scene);
         setLastChanges(recognition.changes);
@@ -304,13 +326,17 @@ export default function Home() {
 
       const generation = await postJson<{ page: GeneratedPage }>(
         '/api/generate',
-        recognition.mode === 'delta' && previousScene && previousPage
+        recognition.mode === 'delta' &&
+        previousScene &&
+        previousPage &&
+        !replacesEntireTopic(previousScene, recognition.changes)
           ? {
               changes: recognition.changes,
               previousScene,
               previousPage,
+              stylePrompt: requestedStyle,
             }
-          : { scene: recognition.scene },
+          : { scene: recognition.scene, stylePrompt: requestedStyle },
         controller.signal,
       );
       if (requestId !== requestSequence.current) return;
@@ -353,6 +379,25 @@ export default function Home() {
     setStage('error');
   }
 
+  function resetProject() {
+    requestSequence.current += 1;
+    activeRequest.current?.abort();
+    activeRequest.current = null;
+    setScene(null);
+    setGeneratedPage(null);
+    setLastChanges(null);
+    setLastSubmittedImage(null);
+    setStylePrompt('');
+    setErrorMessage(null);
+    setOutputView('preview');
+    setStage('idle');
+    try {
+      localStorage.removeItem(OUTPUT_STORAGE_KEY);
+    } catch {
+      // The in-memory reset still succeeds when browser storage is unavailable.
+    }
+  }
+
   return (
     <main className="app-shell">
       <header className="topbar">
@@ -385,6 +430,7 @@ export default function Home() {
         <DrawingWorkspace
           hasPreviousSubmission={canGenerateIncrementally}
           isGenerating={isGenerating}
+          onClear={resetProject}
           onExportError={handleExportError}
           onGenerate={generateWebsite}
         />
@@ -498,14 +544,27 @@ export default function Home() {
           </p>
           <h2>{generatedPage?.style.name ?? stageLabels[stage]}</h2>
         </div>
-        <p
-          className={errorMessage ? 'error-message' : undefined}
-          role={errorMessage ? 'alert' : undefined}
-        >
-          {errorMessage ??
-            generatedPage?.style.rationale ??
-            'Kimi Vision compares each submission with the last one, then Kimi Code updates only the added, changed, or deleted components.'}
-        </p>
+        <div className="inspector-copy">
+          <p
+            className={errorMessage ? 'error-message' : undefined}
+            role={errorMessage ? 'alert' : undefined}
+          >
+            {errorMessage ??
+              generatedPage?.style.rationale ??
+              'Kimi Vision compares each submission with the last one, then Kimi Code updates only the added, changed, or deleted components.'}
+          </p>
+          <label className="style-prompt">
+            <span>Theme</span>
+            <input
+              disabled={isGenerating}
+              maxLength={300}
+              onChange={(event) => setStylePrompt(event.target.value)}
+              placeholder="e.g. warm editorial, dark sci-fi, playful pastel"
+              type="text"
+              value={stylePrompt}
+            />
+          </label>
+        </div>
         {generatedPage ? (
           <div
             className="style-characteristics"
