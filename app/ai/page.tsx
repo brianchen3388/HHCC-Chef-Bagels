@@ -10,7 +10,7 @@ import {
   type GeneratedPage,
 } from '@/lib/contracts';
 import DrawingWorkspace from './AiDrawingWorkspace';
-import { downloadHtmlFile } from '../export-html';
+import { buildHtmlDocument, downloadWebsiteZip } from '../export-html';
 
 const previewSizes = [
   { id: 'desktop', label: 'Desktop' },
@@ -441,9 +441,24 @@ export default function Home() {
     if (lastSubmittedImage) persistGeneration(nextScene, nextPage, lastSubmittedImage);
   }
 
-  function exportWebsite() {
+  async function exportWebsite() {
     if (!generatedPage) return;
-    downloadHtmlFile('sketchly-ai.html', generatedPage.html, generatedPage.css);
+    try {
+      await downloadWebsiteZip('sketchly-generative-website.zip', [
+        {
+          name: 'index.html',
+          content: buildHtmlDocument('Sketchly generated website', generatedPage.html),
+        },
+        { name: 'styles.css', content: generatedPage.css },
+        {
+          name: 'README.txt',
+          content: 'Sketchly generative website export\n\nOpen index.html in a browser. Keep styles.css in the same folder.',
+        },
+      ]);
+    } catch {
+      setErrorMessage('Could not create the website ZIP. Please try again.');
+      setStage('error');
+    }
   }
 
   return (
@@ -525,7 +540,7 @@ export default function Home() {
                 onClick={exportWebsite}
                 type="button"
               >
-                Export HTML
+                Export ZIP
               </button>
             </div>
           </div>

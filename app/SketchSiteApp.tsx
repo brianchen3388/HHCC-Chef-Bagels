@@ -10,8 +10,8 @@ import {
 } from 'react';
 import Link from 'next/link';
 import DrawingWorkspace from './DrawingWorkspace';
-import { downloadHtmlFile } from './export-html';
-import { generateCss, generateReact } from './sketch/codegen';
+import { buildHtmlDocument, downloadWebsiteZip } from './export-html';
+import { generateCss, generateReact, generateStaticPages } from './sketch/codegen';
 import type {
   CanvasItem,
   ElementCustomization,
@@ -486,6 +486,7 @@ function descendantIds(node: WebsiteNode) {
 
 type OutputPanelProps = {
   activePageId: string;
+  canExport: boolean;
   codeView: CodeView;
   copiedLabel: string;
   cssCode: string;
@@ -513,6 +514,7 @@ type OutputPanelProps = {
 
 function OutputPanel({
   activePageId,
+  canExport,
   codeView,
   copiedLabel,
   cssCode,
@@ -630,11 +632,11 @@ function OutputPanel({
           </div>
           <button
             className="export-button"
-            disabled={site.tree.children.length === 0}
+            disabled={!canExport}
             onClick={onExport}
             type="button"
           >
-            Export HTML
+            Export ZIP
           </button>
         </div>
       </div>
@@ -929,6 +931,7 @@ export default function SketchSiteApp() {
     [pages],
   );
   const site = generatedPages.find((page) => page.id === activePageId)?.site ?? generatedPages[0].site;
+  const canExport = generatedPages.some((page) => page.site.tree.children.length > 0);
   const reactCode = useMemo(() => generateReact(generatedPages), [generatedPages]);
   const cssCode = kimiCss ?? originalCss;
   const cssLabel = kimiCss ? 'Kimi CSS active' : 'Original CSS';
@@ -1080,10 +1083,25 @@ export default function SketchSiteApp() {
     }
   }
 
-  function exportWebsite() {
-    const siteRoot = document.querySelector<HTMLElement>('#geometric-export-root .site');
-    if (!siteRoot) return;
-    downloadHtmlFile('sketchly-geometric.html', siteRoot.outerHTML, cssCode);
+  async function exportWebsite() {
+    const staticPages = generateStaticPages(generatedPages);
+    if (!canExport || staticPages.length === 0) return;
+    try {
+      await downloadWebsiteZip('sketchly-website.zip', [
+        ...staticPages.map((page) => ({
+          name: page.filename,
+          content: buildHtmlDocument(page.name, page.bodyHtml),
+        })),
+        { name: 'styles.css', content: cssCode },
+        {
+          name: 'README.txt',
+          content: 'Sketchly website export\n\nOpen index.html in a browser. Linked buttons use the other HTML files in this folder.',
+        },
+      ]);
+    } catch {
+      setCssGenerationError('Could not create the website ZIP. Please try again.');
+      setCssGenerationStatus('error');
+    }
   }
 
   const confidentCount = activePage.primitives.filter(
@@ -1134,6 +1152,7 @@ export default function SketchSiteApp() {
         />
         <OutputPanel
           activePageId={activePageId}
+          canExport={canExport}
           codeView={codeView}
           copiedLabel={copiedLabel}
           cssCode={cssCode}

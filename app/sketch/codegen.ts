@@ -166,6 +166,190 @@ function componentName(page: GeneratedProjectPage, index: number) {
   return `${name || `Page${index + 1}`}Page`;
 }
 
+function staticPageFilenames(pages: GeneratedProjectPage[]) {
+  const used = new Set<string>();
+  return new Map(pages.map((page, index) => {
+    if (index === 0 || page.slug.trim() === '') {
+      used.add('index.html');
+      return [page.id, 'index.html'];
+    }
+    const cleaned = page.slug
+      .trim()
+      .replace(/^\/+|\/+$/g, '')
+      .replace(/[^a-zA-Z0-9-_]+/g, '-')
+      .replace(/^-+|-+$/g, '') || `page-${index + 1}`;
+    let filename = `${cleaned}.html`;
+    let suffix = 2;
+    while (used.has(filename)) {
+      filename = `${cleaned}-${suffix}.html`;
+      suffix += 1;
+    }
+    used.add(filename);
+    return [page.id, filename];
+  }));
+}
+
+function htmlStyle(node: WebsiteNode) {
+  return node.fontSize ? ` style="font-size: ${node.fontSize}px"` : '';
+}
+
+function renderStaticRows(
+  node: WebsiteNode,
+  depth: number,
+  insideForm: boolean,
+  filenameByPageId: Map<string, string>,
+): string[] {
+  const rows = node.childRows ?? node.children.map((child) => [child.id]);
+  if (rows.length === 0) return [];
+  const childById = new Map(node.children.map((child) => [child.id, child]));
+  const pad = '  '.repeat(depth);
+  const lines = [`${pad}<div class="mixed-layout">`];
+
+  rows.forEach((row) => {
+    lines.push(`${pad}  <div class="spatial-row${row.length === 1 ? ' single' : ''}">`);
+    row.forEach((childId) => {
+      const child = childById.get(childId);
+      if (child) {
+        lines.push(...renderStaticNode(child, depth + 2, insideForm, filenameByPageId));
+      }
+    });
+    lines.push(`${pad}  </div>`);
+  });
+  lines.push(`${pad}</div>`);
+  return lines;
+}
+
+function renderStaticNode(
+  node: WebsiteNode,
+  depth: number,
+  insideForm: boolean,
+  filenameByPageId: Map<string, string>,
+): string[] {
+  const pad = '  '.repeat(depth);
+  const content = jsxText(node.content ?? '');
+  const childIsInsideForm = insideForm || node.type === 'form';
+  const children = renderStaticRows(node, depth + 1, childIsInsideForm, filenameByPageId);
+  const textStyle = htmlStyle(node);
+
+  if (node.type === 'navbar') {
+    const navbarMidpoint = node.bounds.x + node.bounds.width / 2;
+    const orderedChildren = [...node.children].sort(
+      (first, second) => first.bounds.x - second.bounds.x || first.bounds.y - second.bounds.y,
+    );
+    const leftChildren = orderedChildren.filter(
+      (child) => child.bounds.x + child.bounds.width / 2 < navbarMidpoint,
+    );
+    const rightChildren = orderedChildren.filter(
+      (child) => child.bounds.x + child.bounds.width / 2 >= navbarMidpoint,
+    );
+    return [
+      `${pad}<nav class="${variantClass(node, 'site-nav')}">`,
+      `${pad}  <div class="nav-content nav-left">`,
+      ...(content ? [`${pad}    <a class="brand" href="./index.html"${textStyle}>${content}</a>`] : []),
+      ...leftChildren.flatMap((child) => renderStaticNode(child, depth + 2, childIsInsideForm, filenameByPageId)),
+      `${pad}  </div>`,
+      `${pad}  <div class="nav-content nav-right">`,
+      ...rightChildren.flatMap((child) => renderStaticNode(child, depth + 2, childIsInsideForm, filenameByPageId)),
+      `${pad}  </div>`,
+      `${pad}</nav>`,
+    ];
+  }
+  if (node.type === 'hero') {
+    return [`${pad}<section class="${variantClass(node, 'hero')}">`, ...children, `${pad}</section>`];
+  }
+  if (node.type === 'section') {
+    return [`${pad}<section class="${variantClass(node, 'section')}">`, ...children, `${pad}</section>`];
+  }
+  if (node.type === 'cardGrid') {
+    return [
+      `${pad}<section class="${variantClass(node, 'features')}">`,
+      `${pad}  <div class="card-grid">`,
+      ...node.children.flatMap((child) => renderStaticNode(child, depth + 2, childIsInsideForm, filenameByPageId)),
+      `${pad}  </div>`,
+      `${pad}</section>`,
+    ];
+  }
+  if (node.type === 'card') {
+    return [
+      `${pad}<article class="${variantClass(node, 'card')}">`,
+      ...(node.children.length > 0
+        ? children
+        : [
+            `${pad}  <h2>${content || 'Feature'}</h2>`,
+            `${pad}  <p>A clear, purposeful section generated from your wireframe.</p>`,
+          ]),
+      `${pad}</article>`,
+    ];
+  }
+  if (node.type === 'heading') {
+    return [`${pad}<h1 class="${variantClass(node, 'site-heading')}"${textStyle}>${content || 'Your headline'}</h1>`];
+  }
+  if (node.type === 'paragraph') {
+    return [`${pad}<p class="${variantClass(node, 'site-paragraph')}"${textStyle}>${content || 'Your supporting copy.'}</p>`];
+  }
+  if (node.type === 'image') {
+    if (node.imageDataUrl) {
+      return [
+        `${pad}<img class="${variantClass(node, 'site-image imported')}" src="${jsxAttribute(node.imageDataUrl)}" alt="">`,
+      ];
+    }
+    return [`${pad}<div class="${variantClass(node, 'site-image')}" role="img" aria-label="Website visual"></div>`];
+  }
+  if (node.type === 'button') {
+    const label = content || jsxText(nestedText(node)) || 'Get started';
+    const linkedFilename = node.linkPageId
+      ? filenameByPageId.get(node.linkPageId)
+      : undefined;
+    if (linkedFilename) {
+      return [`${pad}<a class="${variantClass(node, 'primary-button')}" href="./${jsxAttribute(linkedFilename)}"${textStyle}>${label}</a>`];
+    }
+    return [`${pad}<button class="${variantClass(node, 'primary-button')}" type="${insideForm ? 'submit' : 'button'}"${textStyle}>${label}</button>`];
+  }
+  if (node.type === 'input') {
+    const inputId = node.id.replace(/[^a-zA-Z0-9-]/g, '');
+    const rawLabel = nestedText(node) || node.content || 'Your details';
+    const label = jsxText(rawLabel);
+    return [
+      `${pad}<label class="${variantClass(node, 'field')}" for="${inputId}">`,
+      `${pad}  ${label}`,
+      `${pad}  <input id="${inputId}" name="${inputId}" placeholder="${jsxAttribute(rawLabel)}">`,
+      `${pad}</label>`,
+    ];
+  }
+  if (node.type === 'form') {
+    return [`${pad}<form class="${variantClass(node, 'contact-form')}" action="#">`, ...children, `${pad}</form>`];
+  }
+  if (node.type === 'divider') {
+    const orientation = node.orientation ?? (
+      node.bounds.width >= node.bounds.height * CANVAS_PAGE_RATIO ? 'horizontal' : 'vertical'
+    );
+    return [
+      `${pad}<div class="${variantClass(node, `divider divider-${orientation}`)}" role="separator" aria-orientation="${orientation}"></div>`,
+    ];
+  }
+  if (node.type === 'footer') {
+    return [
+      `${pad}<footer class="${variantClass(node, 'site-footer')}">`,
+      ...(node.children.length > 0 ? children : [`${pad}  ${content || '© 2026 Your studio'}`]),
+      `${pad}</footer>`,
+    ];
+  }
+  return children;
+}
+
+export function generateStaticPages(pages: GeneratedProjectPage[]) {
+  const filenameByPageId = staticPageFilenames(pages);
+  return pages.map((page) => ({
+    filename: filenameByPageId.get(page.id) ?? 'index.html',
+    name: page.name,
+    bodyHtml: [
+      '<main class="site">',
+      ...renderStaticRows(page.site.tree, 1, false, filenameByPageId),
+      '</main>',
+    ].join('\n'),
+  }));
+}
+
 export function generateReact(pages: GeneratedProjectPage[]) {
   const pageById = new Map(pages.map((page) => [page.id, page]));
   const components = pages.flatMap((page, index) => [
