@@ -1,7 +1,8 @@
 'use client';
 
+/* eslint-disable @next/next/no-html-link-for-pages */
+
 import { useEffect, useMemo, useRef, useState } from 'react';
-import Link from 'next/link';
 import {
   validateComponentScene,
   validateGeneratedPage,
@@ -472,11 +473,11 @@ export default function Home() {
   return (
     <main className="app-shell generative-shell">
       <header className="topbar">
-        <Link className="brand" href="/" aria-label="Sketchly home">
+        <a className="brand" href="/" aria-label="Sketchly home">
           <span className="brand-mark" aria-hidden="true" />
           <span className="brand-title">Sketchly</span>
           <span className="brand-mode">Generative Mode</span>
-        </Link>
+        </a>
 
         <div className={`status stage-${stage}`} aria-live="polite">
           <span className="status-dot" aria-hidden="true" />
