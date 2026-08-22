@@ -81,7 +81,6 @@ const designPresets = [
 
 const correctionTypes: Array<{ value: StructureOverrideType; label: string }> = [
   { value: 'navbar', label: 'Navbar' },
-  { value: 'taskbar', label: 'Taskbar' },
   { value: 'hero', label: 'Hero section' },
   { value: 'section', label: 'Section' },
   { value: 'cardGrid', label: 'Card grid' },
@@ -98,7 +97,6 @@ const correctionTypes: Array<{ value: StructureOverrideType; label: string }> = 
 
 const containerTypes = new Set<WebsiteNode['type']>([
   'navbar',
-  'taskbar',
   'hero',
   'section',
   'cardGrid',
@@ -251,17 +249,6 @@ function GeneratedNode({
           {renderNavbarChildren(rightChildren)}
         </div>
       </nav>
-    );
-  }
-  if (node.type === 'taskbar') {
-    const side = node.bounds.x + node.bounds.width / 2 < 0.5 ? 'left' : 'right';
-    return (
-      <aside
-        className={generatedNodeClass(node, `generated-taskbar taskbar taskbar-${side}`, selectedId)}
-        onClick={selectNode}
-      >
-        {groupedChildren}
-      </aside>
     );
   }
   if (node.type === 'hero') return <section className={generatedNodeClass(node, 'generated-hero hero', selectedId)} onClick={selectNode}>{groupedChildren}</section>;

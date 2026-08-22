@@ -416,18 +416,6 @@ function isWideBottomContainer(primitive: RecognizedPrimitive) {
   );
 }
 
-function isTallSideContainer(primitive: RecognizedPrimitive) {
-  const touchesSide =
-    primitive.bounds.x < 0.18 ||
-    primitive.bounds.x + primitive.bounds.width > 0.82;
-  return (
-    primitive.type === 'container' &&
-    primitive.bounds.width <= 0.24 &&
-    visualHeight(primitive.bounds.height) >= 0.3 &&
-    touchesSide
-  );
-}
-
 function axisOverlapRatio(
   firstStart: number,
   firstSize: number,
@@ -474,7 +462,6 @@ export function inferWebsite(
     if (primitive.type === 'text') {
       return primitive.id === firstTextId ? 'heading' : 'paragraph';
     }
-    if (isTallSideContainer(primitive)) return 'taskbar';
     if (isWideTopContainer(primitive)) return 'navbar';
     if (isWideBottomContainer(primitive)) return 'footer';
     if (
@@ -534,7 +521,6 @@ export function inferWebsite(
   const canContain = (type: WebsiteNodeType) =>
     [
       'navbar',
-      'taskbar',
       'hero',
       'section',
       'cardGrid',
@@ -594,7 +580,6 @@ export function inferWebsite(
     const primitiveId = current.sourcePrimitiveIds[0];
     const inferredContainerType = [
       'navbar',
-      'taskbar',
       'hero',
       'section',
       'cardGrid',
