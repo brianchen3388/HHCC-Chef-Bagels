@@ -481,7 +481,7 @@ type OutputPanelProps = {
   onElementEdit: (sourceId: string, patch: ElementCustomization) => void;
   onPageChange: (pageId: string) => void;
   onStructureOverride: (sourceIds: string[], type: StructureOverrideType | 'automatic') => void;
-  onStructureParent: (primitiveId: string, parentId: string) => void;
+  onStructureParent: (primitiveIds: string[], parentId: string) => void;
   onStructureMove: (primitiveId: string, direction: -1 | 1) => void;
   layout: StructureLayout;
   overrides: StructureOverrides;
@@ -747,7 +747,12 @@ function OutputPanel({
                   <select
                     disabled={!selectedPrimitiveId}
                     onChange={(event) => {
-                      if (selectedPrimitiveId) onStructureParent(selectedPrimitiveId, event.target.value);
+                      if (selectedStructureNode) {
+                        onStructureParent(
+                          selectedStructureNode.sourcePrimitiveIds,
+                          event.target.value,
+                        );
+                      }
                     }}
                     value={parentSelection}
                   >
@@ -1004,20 +1009,22 @@ export default function SketchSiteApp() {
     setRecognitionStatus('idle');
   }
 
-  function handleStructureParent(primitiveId: string, parentId: string) {
+  function handleStructureParent(primitiveIds: string[], parentId: string) {
     updateActivePage((page) => {
       const parentByPrimitiveId = { ...page.layout.parentByPrimitiveId };
-      if (parentId === 'automatic') {
-        delete parentByPrimitiveId[primitiveId];
-      } else {
-        parentByPrimitiveId[primitiveId] = parentId;
-      }
+      primitiveIds.forEach((primitiveId) => {
+        if (parentId === 'automatic') {
+          delete parentByPrimitiveId[primitiveId];
+        } else {
+          parentByPrimitiveId[primitiveId] = parentId;
+        }
+      });
       return { ...page, layout: { ...page.layout, parentByPrimitiveId } };
     });
   }
 
   function handleStructureMove(primitiveId: string, direction: -1 | 1) {
-    const selectedNode = findStructureNode(site.tree, [primitiveId]);
+    const selectedNode = findNodeBySourceId(site.tree, primitiveId);
     if (!selectedNode) return;
     const parent = findParentNode(site.tree, selectedNode.id);
     if (!parent) return;

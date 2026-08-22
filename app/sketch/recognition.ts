@@ -444,6 +444,58 @@ function rectangleRelationship(first: Bounds, second: Bounds) {
   };
 }
 
+function combinedBounds(bounds: Bounds[]) {
+  const left = Math.min(...bounds.map((item) => item.x));
+  const top = Math.min(...bounds.map((item) => item.y));
+  const right = Math.max(...bounds.map((item) => item.x + item.width));
+  const bottom = Math.max(...bounds.map((item) => item.y + item.height));
+  return { x: left, y: top, width: right - left, height: bottom - top };
+}
+
+function canMergeStackedParagraphs(
+  upper: WebsiteNode,
+  lower: WebsiteNode,
+  siblings: WebsiteNode[],
+) {
+  const upperCenter = boundsCenter(upper.bounds);
+  const lowerCenter = boundsCenter(lower.bounds);
+  if (lowerCenter.y <= upperCenter.y) return false;
+
+  const horizontalOverlap = axisOverlapRatio(
+    upper.bounds.x,
+    upper.bounds.width,
+    lower.bounds.x,
+    lower.bounds.width,
+  );
+  if (horizontalOverlap < 0.55) return false;
+
+  const upperBottom = upper.bounds.y + upper.bounds.height;
+  const verticalGap = lower.bounds.y - upperBottom;
+  const maximumGap = Math.min(
+    0.04,
+    Math.max(0.018, Math.max(upper.bounds.height, lower.bounds.height) * 2.2),
+  );
+  if (verticalGap > maximumGap) return false;
+
+  const sharedLeft = Math.max(upper.bounds.x, lower.bounds.x);
+  const sharedRight = Math.min(
+    upper.bounds.x + upper.bounds.width,
+    lower.bounds.x + lower.bounds.width,
+  );
+  const gapTop = Math.min(upperBottom, lower.bounds.y);
+  const gapBottom = Math.max(upperBottom, lower.bounds.y);
+  return !siblings.some((candidate) => {
+    if (candidate.id === upper.id || candidate.id === lower.id) return false;
+    const crossesSharedWidth =
+      candidate.bounds.x + candidate.bounds.width > sharedLeft &&
+      candidate.bounds.x < sharedRight;
+    const sitsBetween =
+      candidate.bounds.y + candidate.bounds.height > gapTop - 0.002 &&
+      candidate.bounds.y < gapBottom + 0.002;
+    return crossesSharedWidth && sitsBetween;
+  });
+}
+
 export function inferWebsite(
   primitives: RecognizedPrimitive[],
   overrides: StructureOverrides = {},
@@ -609,6 +661,71 @@ export function inferWebsite(
     if (customization.fontSize !== undefined) current.fontSize = customization.fontSize;
     if (customization.linkPageId !== undefined) current.linkPageId = customization.linkPageId;
     if (customization.styleVariant !== undefined) current.styleVariant = customization.styleVariant;
+  });
+
+  const paragraphPlaceholder = 'A clear, purposeful section generated from your wireframe.';
+  const parentIds = new Set(Object.values(parentByNodeId));
+  parentIds.forEach((parentId) => {
+    const siblings = [...nodes.values()].filter(
+      (node) => parentByNodeId[node.id] === parentId,
+    );
+    const paragraphs = siblings
+      .filter((node) => node.type === 'paragraph')
+      .sort(
+        (first, second) =>
+          first.bounds.y - second.bounds.y || first.bounds.x - second.bounds.x,
+      );
+    const paragraphGroups = new Map(paragraphs.map((paragraph) => [paragraph.id, paragraph.id]));
+    const findParagraphGroup = (id: string): string => {
+      const parent = paragraphGroups.get(id) ?? id;
+      if (parent === id) return id;
+      const root = findParagraphGroup(parent);
+      paragraphGroups.set(id, root);
+      return root;
+    };
+    const joinParagraphGroups = (firstId: string, secondId: string) => {
+      const firstRoot = findParagraphGroup(firstId);
+      const secondRoot = findParagraphGroup(secondId);
+      if (firstRoot !== secondRoot) paragraphGroups.set(secondRoot, firstRoot);
+    };
+
+    paragraphs.forEach((upper, index) => {
+      paragraphs.slice(index + 1).forEach((lower) => {
+        if (canMergeStackedParagraphs(upper, lower, siblings)) {
+          joinParagraphGroups(upper.id, lower.id);
+        }
+      });
+    });
+
+    const mergedGroups = new Map<string, WebsiteNode[]>();
+    paragraphs.forEach((paragraph) => {
+      const root = findParagraphGroup(paragraph.id);
+      const group = mergedGroups.get(root) ?? [];
+      group.push(paragraph);
+      mergedGroups.set(root, group);
+    });
+    mergedGroups.forEach((group) => {
+      if (group.length < 2) return;
+      group.sort(
+        (first, second) =>
+          first.bounds.y - second.bounds.y || first.bounds.x - second.bounds.x,
+      );
+      const leader = group[0];
+      const content = group
+        .map((paragraph) => paragraph.content?.trim())
+        .filter((value): value is string => Boolean(value));
+      const authoredContent = content.filter((value) => value !== paragraphPlaceholder);
+      leader.bounds = combinedBounds(group.map((paragraph) => paragraph.bounds));
+      leader.confidence = group.reduce((sum, paragraph) => sum + paragraph.confidence, 0) / group.length;
+      leader.content = authoredContent.length > 0
+        ? authoredContent.join(' ')
+        : content[0] ?? paragraphPlaceholder;
+      leader.sourcePrimitiveIds = group.flatMap((paragraph) => paragraph.sourcePrimitiveIds);
+      group.slice(1).forEach((paragraph) => {
+        nodes.delete(paragraph.id);
+        delete parentByNodeId[paragraph.id];
+      });
+    });
   });
 
   const childrenByParent = new Map<string, WebsiteNode[]>();
