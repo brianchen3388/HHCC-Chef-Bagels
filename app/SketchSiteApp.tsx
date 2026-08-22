@@ -75,12 +75,6 @@ const outputViews: Array<{ id: OutputView; label: string }> = [
   { id: 'code', label: 'Code' },
 ];
 
-const designPresets = [
-  'Warm editorial design with serif headlines, cream surfaces, and deep red accents',
-  'Clean futuristic interface with dark navy panels, electric blue accents, and crisp geometry',
-  'Playful colorful design with rounded cards, bold typography, and soft layered shadows',
-];
-
 const correctionTypes: Array<{ value: StructureOverrideType; label: string }> = [
   { value: 'navbar', label: 'Navbar' },
   { value: 'hero', label: 'Hero section' },
@@ -498,11 +492,8 @@ type OutputPanelProps = {
   codeView: CodeView;
   copiedLabel: string;
   cssCode: string;
-  cssGenerationError: string | null;
-  cssGenerationStatus: CssGenerationStatus;
   cssLabel: string;
   customCss: string | null;
-  designPrompt: string;
   outputView: OutputView;
   previewSize: PreviewSize;
   primitives: RecognizedPrimitive[];
@@ -513,9 +504,6 @@ type OutputPanelProps = {
   pages: Array<{ id: string; name: string; slug: string }>;
   onCopy: () => void;
   onExport: () => void;
-  onDesignPromptChange: (value: string) => void;
-  onGenerateCss: () => void;
-  onResetCss: () => void;
   onCreateLinkedPage: (sourceId: string) => void;
   onElementEdit: (sourceId: string, patch: ElementCustomization) => void;
   onPageChange: (pageId: string) => void;
@@ -531,16 +519,10 @@ function OutputPanel({
   codeView,
   copiedLabel,
   cssCode,
-  cssGenerationError,
-  cssGenerationStatus,
   cssLabel,
   customCss,
-  designPrompt,
   onCopy,
   onExport,
-  onDesignPromptChange,
-  onGenerateCss,
-  onResetCss,
   onCreateLinkedPage,
   onElementEdit,
   onPageChange,
@@ -841,62 +823,6 @@ function OutputPanel({
 
       {outputView === 'code' && (
         <div className="code-stage">
-          <form
-            className="css-designer"
-            onSubmit={(event) => {
-              event.preventDefault();
-              onGenerateCss();
-            }}
-          >
-            <div className="css-designer-heading">
-              <div>
-                <p className="eyebrow">Design with Kimi</p>
-                <h3>Describe how the website should look</h3>
-              </div>
-              <span className={`css-generation-state ${cssGenerationStatus}`} aria-live="polite">
-                {cssGenerationStatus === 'generating'
-                  ? 'Generating complete CSS · may take up to a minute…'
-                  : cssGenerationStatus === 'ready'
-                    ? 'Kimi CSS applied'
-                    : cssGenerationStatus === 'error'
-                      ? cssGenerationError ?? 'Could not generate · current CSS kept'
-                      : cssLabel}
-              </span>
-            </div>
-            <label>
-              Design brief
-              <textarea
-                maxLength={2000}
-                onChange={(event) => onDesignPromptChange(event.target.value)}
-                placeholder="Example: A refined Japanese-inspired portfolio with warm paper tones, precise spacing, dark ink text, and subtle red accents."
-                rows={3}
-                value={designPrompt}
-              />
-            </label>
-            <div className="design-presets" aria-label="Design suggestions">
-              {designPresets.map((preset, index) => (
-                <button
-                  key={preset}
-                  onClick={() => onDesignPromptChange(preset)}
-                  type="button"
-                >
-                  {['Editorial', 'Futuristic', 'Playful'][index]}
-                </button>
-              ))}
-            </div>
-            <div className="css-designer-actions">
-              <button
-                disabled={designPrompt.trim().length < 3 || cssGenerationStatus === 'generating'}
-                type="submit"
-              >
-                {cssGenerationStatus === 'generating' ? 'Generating…' : 'Generate CSS'}
-              </button>
-              {customCss && (
-                <button onClick={onResetCss} type="button">Use original CSS</button>
-              )}
-              <small>Every generated component receives styles, even if it is not on the current page.</small>
-            </div>
-          </form>
           <div className="code-toolbar">
             <div>
               <button
@@ -1176,6 +1102,7 @@ export default function SketchSiteApp() {
         <Link className="brand" href="/" aria-label="SketchSite home">
           <span className="brand-mark" aria-hidden="true">S</span>
           <span>SketchSite</span>
+          <span className="brand-mode">Realtime Mode</span>
         </Link>
 
         <div className={`status ${recognitionStatus}`} aria-live="polite">
@@ -1216,19 +1143,13 @@ export default function SketchSiteApp() {
           codeView={codeView}
           copiedLabel={copiedLabel}
           cssCode={cssCode}
-          cssGenerationError={cssGenerationError}
-          cssGenerationStatus={cssGenerationStatus}
           cssLabel={cssLabel}
           customCss={kimiCss}
-          designPrompt={designPrompt}
           onCopy={copyCode}
           onExport={exportWebsite}
           onCreateLinkedPage={handleCreateLinkedPage}
-          onDesignPromptChange={setDesignPrompt}
           onElementEdit={handleElementEdit}
-          onGenerateCss={() => void handleGenerateCss()}
           onPageChange={handlePageChange}
-          onResetCss={handleResetCss}
           onStructureOverride={handleStructureOverride}
           onStructureParent={handleStructureParent}
           onStructureMove={handleStructureMove}
@@ -1254,11 +1175,47 @@ export default function SketchSiteApp() {
               : 'Nothing recognized yet'}
           </h2>
         </div>
-        <p>
-          {activePage.primitives.length > 0
-            ? `${confidentCount} confident · ${activePage.primitives.length - confidentCount} need review`
-            : 'Draw a few website elements, then pause for automatic recognition.'}
-        </p>
+        <div className="realtime-inspector-copy">
+          <p className={cssGenerationStatus === 'error' ? 'error-message' : undefined} aria-live="polite">
+            {cssGenerationStatus === 'generating'
+              ? 'Generating complete CSS · may take up to a minute…'
+              : cssGenerationStatus === 'ready'
+                ? 'Kimi CSS applied'
+                : cssGenerationStatus === 'error'
+                  ? cssGenerationError ?? 'Could not generate · current CSS kept'
+                  : activePage.primitives.length > 0
+                    ? `${confidentCount} confident · ${activePage.primitives.length - confidentCount} need review`
+                    : 'Draw a few website elements, then pause for automatic recognition.'}
+          </p>
+          <form
+            className="realtime-theme-control"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void handleGenerateCss();
+            }}
+          >
+            <label>
+              <span>Theme</span>
+              <input
+                disabled={cssGenerationStatus === 'generating'}
+                maxLength={2000}
+                onChange={(event) => setDesignPrompt(event.target.value)}
+                placeholder="e.g. warm editorial, dark sci-fi, playful pastel"
+                type="text"
+                value={designPrompt}
+              />
+            </label>
+            <button
+              disabled={designPrompt.trim().length < 3 || cssGenerationStatus === 'generating'}
+              type="submit"
+            >
+              {cssGenerationStatus === 'generating' ? 'Generating…' : 'Apply theme'}
+            </button>
+            {kimiCss && (
+              <button onClick={handleResetCss} type="button">Reset</button>
+            )}
+          </form>
+        </div>
         <button disabled={activePage.canvasItems.length === 0} onClick={recognizeNow} type="button">
           Recognize now
         </button>

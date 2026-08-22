@@ -15,9 +15,8 @@ export default function Home() {
         <p className="eyebrow">Wireframe to website</p>
         <h1>Choose how your sketch becomes a site.</h1>
         <p>
-          Use Kimi for semantic interpretation and polished HTML/CSS, or use the
-          fast local geometric engine for predictable conversion without an AI
-          generation request.
+          Choose a polished AI-generated result or a fast, direct workflow where
+          every canvas change immediately shapes the final structure.
         </p>
       </section>
 
@@ -25,31 +24,37 @@ export default function Home() {
         <Link className="mode-card ai" href="/ai">
           <span className="mode-card-index">01</span>
           <div>
-            <p className="eyebrow">AI API</p>
-            <h2>Kimi generation</h2>
-            <p>Vision understands the sketch, then Kimi creates complete HTML and CSS.</p>
+            <p className="eyebrow">AI-powered</p>
+            <h2>Generative Mode</h2>
+            <p>
+              Takes longer while Kimi interprets your intent, but produces a more
+              polished, expressive website.
+            </p>
           </div>
           <ul>
             <li>Semantic component recognition</li>
             <li>Theme-aware HTML and CSS</li>
             <li>Incremental sketch updates</li>
           </ul>
-          <strong>Open AI editor →</strong>
+          <strong>Open Generative Mode →</strong>
         </Link>
 
         <Link className="mode-card geometric" href="/geometric">
           <span className="mode-card-index">02</span>
           <div>
-            <p className="eyebrow">Geometric</p>
-            <h2>Local conversion</h2>
-            <p>Geometry becomes a deterministic component tree and local generated code.</p>
+            <p className="eyebrow">Instant local conversion</p>
+            <h2>Realtime Mode</h2>
+            <p>
+              See how every canvas move affects the output and keep direct control
+              over component structure and placement.
+            </p>
           </div>
           <ul>
             <li>Fast local recognition</li>
             <li>Editable structure and text</li>
             <li>Optional Kimi CSS designer</li>
           </ul>
-          <strong>Open geometric editor →</strong>
+          <strong>Open Realtime Mode →</strong>
         </Link>
       </section>
     </main>

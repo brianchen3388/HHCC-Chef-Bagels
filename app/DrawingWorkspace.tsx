@@ -709,7 +709,7 @@ export default function DrawingWorkspace({
             onPointerDown={startGesture}
             onPointerMove={continueGesture}
             onPointerUp={finishGesture}
-            preserveAspectRatio="none"
+            preserveAspectRatio="xMinYMin meet"
             role="application"
             viewBox={`0 0 ${CANVAS_WIDTH} ${CANVAS_HEIGHT}`}
           >

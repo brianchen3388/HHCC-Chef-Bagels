@@ -19,7 +19,7 @@ const previewSizes = [
 ] as const;
 
 const stageLabels = {
-  idle: 'AI ready',
+  idle: 'Generative ready',
   recognizing: 'Recognizing components',
   comparing: 'Comparing sketch changes',
   generating: 'Writing HTML & CSS',
@@ -452,6 +452,7 @@ export default function Home() {
         <Link className="brand" href="/" aria-label="SketchSite home">
           <span className="brand-mark" aria-hidden="true">S</span>
           <span>SketchSite</span>
+          <span className="brand-mode">Generative Mode</span>
         </Link>
 
         <div className={`status stage-${stage}`} aria-live="polite">

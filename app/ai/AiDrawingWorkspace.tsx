@@ -55,6 +55,8 @@ type DrawingWorkspaceProps = {
 };
 
 const CANVAS_STORAGE_KEY = 'sketchsite-canvas-v1';
+const CANVAS_WIDTH = 1000;
+const CANVAS_HEIGHT = 3000;
 
 type DrawGesture = {
   kind: 'draw';
@@ -353,8 +355,8 @@ function CanvasItemShape({ item }: { item: CanvasItem }) {
         <circle
           {...itemAttributes}
           className="canvas-dot"
-          cx={point.x * 1000}
-          cy={point.y * 1000}
+          cx={point.x * CANVAS_WIDTH}
+          cy={point.y * CANVAS_HEIGHT}
           r="2.5"
         />
       );
@@ -365,7 +367,7 @@ function CanvasItemShape({ item }: { item: CanvasItem }) {
         {...itemAttributes}
         className="canvas-pen"
         points={item.points
-          .map((point) => `${point.x * 1000},${point.y * 1000}`)
+          .map((point) => `${point.x * CANVAS_WIDTH},${point.y * CANVAS_HEIGHT}`)
           .join(' ')}
       />
     );
@@ -376,10 +378,10 @@ function CanvasItemShape({ item }: { item: CanvasItem }) {
       <line
         {...itemAttributes}
         className="canvas-line"
-        x1={item.start.x * 1000}
-        x2={item.end.x * 1000}
-        y1={item.start.y * 1000}
-        y2={item.end.y * 1000}
+        x1={item.start.x * CANVAS_WIDTH}
+        x2={item.end.x * CANVAS_WIDTH}
+        y1={item.start.y * CANVAS_HEIGHT}
+        y2={item.end.y * CANVAS_HEIGHT}
       />
     );
   }
@@ -390,10 +392,10 @@ function CanvasItemShape({ item }: { item: CanvasItem }) {
       <rect
         {...itemAttributes}
         className="canvas-frame"
-        height={(bounds.bottom - bounds.top) * 1000}
-        width={(bounds.right - bounds.left) * 1000}
-        x={bounds.left * 1000}
-        y={bounds.top * 1000}
+        height={(bounds.bottom - bounds.top) * CANVAS_HEIGHT}
+        width={(bounds.right - bounds.left) * CANVAS_WIDTH}
+        x={bounds.left * CANVAS_WIDTH}
+        y={bounds.top * CANVAS_HEIGHT}
       />
     );
   }
@@ -402,8 +404,8 @@ function CanvasItemShape({ item }: { item: CanvasItem }) {
     <text
       {...itemAttributes}
       className="canvas-text"
-      x={item.position.x * 1000}
-      y={item.position.y * 1000}
+      x={item.position.x * CANVAS_WIDTH}
+      y={item.position.y * CANVAS_HEIGHT}
     >
       {item.content}
     </text>
@@ -413,16 +415,16 @@ function CanvasItemShape({ item }: { item: CanvasItem }) {
 function SelectionOutline({ item }: { item: CanvasItem }) {
   const bounds = getItemBounds(item);
   const padding = 8;
-  const width = Math.max(12, (bounds.right - bounds.left) * 1000);
-  const height = Math.max(12, (bounds.bottom - bounds.top) * 1000);
+  const width = Math.max(12, (bounds.right - bounds.left) * CANVAS_WIDTH);
+  const height = Math.max(12, (bounds.bottom - bounds.top) * CANVAS_HEIGHT);
 
   return (
     <rect
       className="selection-outline"
       height={height + padding * 2}
       width={width + padding * 2}
-      x={bounds.left * 1000 - padding}
-      y={bounds.top * 1000 - padding}
+      x={bounds.left * CANVAS_WIDTH - padding}
+      y={bounds.top * CANVAS_HEIGHT - padding}
     />
   );
 }
@@ -431,8 +433,8 @@ function exportSvgAsPng(svg: SVGSVGElement) {
   const exportSvg = svg.cloneNode(true) as SVGSVGElement;
   exportSvg.querySelectorAll('.selection-outline').forEach((node) => node.remove());
   exportSvg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-  exportSvg.setAttribute('width', '1000');
-  exportSvg.setAttribute('height', '1000');
+  exportSvg.setAttribute('width', String(CANVAS_WIDTH));
+  exportSvg.setAttribute('height', String(CANVAS_HEIGHT));
 
   exportSvg
     .querySelectorAll<SVGElement>('.canvas-pen, .canvas-line, .canvas-frame')
@@ -464,8 +466,8 @@ function exportSvgAsPng(svg: SVGSVGElement) {
     image.onload = () => {
       try {
         const canvas = document.createElement('canvas');
-        canvas.width = 1000;
-        canvas.height = 1000;
+        canvas.width = CANVAS_WIDTH;
+        canvas.height = CANVAS_HEIGHT;
         const context = canvas.getContext('2d');
         if (!context) {
           reject(new Error('无法创建画布快照。'));
@@ -910,45 +912,47 @@ export default function DrawingWorkspace({
       </div>
 
       <div className="canvas-wrap">
-        {items.length === 0 && draftItem === null && (
-          <div className="canvas-empty">
-            <div className="empty-icon" aria-hidden="true">
-              <span />
-              <span />
-              <span />
+        <div className="ai-canvas-page">
+          {items.length === 0 && draftItem === null && (
+            <div className="canvas-empty">
+              <div className="empty-icon" aria-hidden="true">
+                <span />
+                <span />
+                <span />
+              </div>
+              <h2>Your canvas is ready</h2>
+              <p>
+                {hasPreviousSubmission
+                  ? 'Generate this blank canvas to remove the previous components.'
+                  : 'Choose a tool, then draw or place an element.'}
+              </p>
             </div>
-            <h2>Your canvas is ready</h2>
-            <p>
-              {hasPreviousSubmission
-                ? 'Generate this blank canvas to remove the previous components.'
-                : 'Choose a tool, then draw or place an element.'}
-            </p>
-          </div>
-        )}
-
-        <svg
-          aria-label={`Wireframe canvas. ${toolOptions.find((tool) => tool.id === activeTool)?.label} tool selected.`}
-          className={`drawing-surface tool-${activeTool}`}
-          onPointerCancel={cancelGesture}
-          onPointerDown={startGesture}
-          onPointerMove={continueGesture}
-          onPointerUp={finishGesture}
-          preserveAspectRatio="none"
-          ref={svgRef}
-          role="application"
-          viewBox="0 0 1000 1000"
-        >
-          <g className="canvas-items">
-            {visibleItems.map((item) => (
-              <CanvasItemShape item={item} key={item.id} />
-            ))}
-          </g>
-          {activeTool === 'select' && selectedItem && (
-            <SelectionOutline item={selectedItem} />
           )}
-        </svg>
 
-        <span className="zoom-label">100%</span>
+          <svg
+            aria-label={`Scrollable wireframe canvas. ${toolOptions.find((tool) => tool.id === activeTool)?.label} tool selected.`}
+            className={`drawing-surface tool-${activeTool}`}
+            onPointerCancel={cancelGesture}
+            onPointerDown={startGesture}
+            onPointerMove={continueGesture}
+            onPointerUp={finishGesture}
+            preserveAspectRatio="xMinYMin meet"
+            ref={svgRef}
+            role="application"
+            viewBox={`0 0 ${CANVAS_WIDTH} ${CANVAS_HEIGHT}`}
+          >
+            <g className="canvas-items">
+              {visibleItems.map((item) => (
+                <CanvasItemShape item={item} key={item.id} />
+              ))}
+            </g>
+            {activeTool === 'select' && selectedItem && (
+              <SelectionOutline item={selectedItem} />
+            )}
+          </svg>
+
+          <span className="zoom-label">100%</span>
+        </div>
       </div>
 
       <footer className="panel-footer">
@@ -966,4 +970,3 @@ export default function DrawingWorkspace({
     </section>
   );
 }
-
