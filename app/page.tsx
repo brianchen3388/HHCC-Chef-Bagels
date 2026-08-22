@@ -1,13 +1,13 @@
-import Link from 'next/link';
+/* eslint-disable @next/next/no-html-link-for-pages */
 
 export default function Home() {
   return (
     <main className="mode-home">
       <nav className="mode-home-nav" aria-label="Sketchly home">
-        <Link className="brand" href="/">
+        <a className="brand" href="/">
           <span className="brand-mark" aria-hidden="true" />
           <span className="brand-title">Sketchly</span>
-        </Link>
+        </a>
         <span className="home-tagline">Sketch once. Build your way.</span>
       </nav>
 
@@ -23,7 +23,7 @@ export default function Home() {
       </section>
 
       <section className="mode-grid" aria-label="Generation modes">
-        <Link className="mode-card ai" href="/ai">
+        <a className="mode-card ai" href="/ai">
           <span className="mode-card-index">01</span>
           <div>
             <p className="eyebrow">AI-powered</p>
@@ -39,9 +39,9 @@ export default function Home() {
             <li>Incremental sketch updates</li>
           </ul>
           <strong>Open Generative Mode →</strong>
-        </Link>
+        </a>
 
-        <Link className="mode-card geometric" href="/geometric">
+        <a className="mode-card geometric" href="/geometric">
           <span className="mode-card-index">02</span>
           <div>
             <p className="eyebrow">Instant local conversion</p>
@@ -57,7 +57,7 @@ export default function Home() {
             <li>Optional Kimi CSS designer</li>
           </ul>
           <strong>Open Realtime Mode →</strong>
-        </Link>
+        </a>
       </section>
     </main>
   );

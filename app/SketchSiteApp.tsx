@@ -1,5 +1,7 @@
 'use client';
 
+/* eslint-disable @next/next/no-html-link-for-pages */
+
 import {
   useEffect,
   useMemo,
@@ -8,7 +10,6 @@ import {
   type ChangeEvent,
   type MouseEvent as ReactMouseEvent,
 } from 'react';
-import Link from 'next/link';
 import DrawingWorkspace from './DrawingWorkspace';
 import {
   buildExportStylesheet,
@@ -1121,11 +1122,11 @@ export default function SketchSiteApp() {
   return (
     <main className="app-shell">
       <header className="topbar">
-        <Link className="brand" href="/" aria-label="Sketchly home">
+        <a className="brand" href="/" aria-label="Sketchly home">
           <span className="brand-mark" aria-hidden="true" />
           <span className="brand-title">Sketchly</span>
           <span className="brand-mode">Realtime Mode</span>
-        </Link>
+        </a>
 
         <div className={`status ${recognitionStatus}`} aria-live="polite">
           <span className="status-dot" aria-hidden="true" />
