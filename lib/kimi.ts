@@ -23,6 +23,13 @@ type KimiJsonRequest = {
   reasoningEffort?: 'low' | 'high' | 'max';
 };
 
+type KimiValidatedJsonRequest<T> = KimiJsonRequest & {
+  validate: (value: unknown) => T;
+  validationRetryInstruction: string;
+  validationErrorCode: string;
+  validationErrorMessage: string;
+};
+
 type KimiChatResponse = {
   choices?: Array<{
     finish_reason?: string | null;
@@ -262,6 +269,45 @@ export async function requestKimiJson({
       maxTokens: Math.max(maxTokens, retryMaxTokens ?? maxTokens),
       reasoningEffort,
     });
+  }
+}
+
+export async function requestKimiValidatedJson<T>({
+  validate,
+  validationRetryInstruction,
+  validationErrorCode,
+  validationErrorMessage,
+  ...request
+}: KimiValidatedJsonRequest<T>) {
+  const rawResult = await requestKimiJson(request);
+
+  try {
+    return validate(rawResult);
+  } catch {
+    const retriedResult = await requestKimiJson({
+      ...request,
+      maxTokens: Math.max(
+        request.maxTokens,
+        request.retryMaxTokens ?? request.maxTokens,
+      ),
+      messages: [
+        ...request.messages,
+        {
+          role: 'user',
+          content: validationRetryInstruction,
+        },
+      ],
+    });
+
+    try {
+      return validate(retriedResult);
+    } catch {
+      throw new KimiRequestError(
+        validationErrorCode,
+        502,
+        validationErrorMessage,
+      );
+    }
   }
 }
 
