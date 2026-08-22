@@ -490,35 +490,42 @@ export default function Home() {
               <p className="eyebrow">Output</p>
               <h2 id="preview-heading">Generated website</h2>
             </div>
-            <div className="view-tabs" aria-label="Output view">
+            <div className="panel-heading-actions">
+              <div className="view-tabs" aria-label="Output view">
+                <button
+                  aria-pressed={outputView === 'preview'}
+                  className={outputView === 'preview' ? 'active' : ''}
+                  onClick={() => setOutputView('preview')}
+                  type="button"
+                >
+                  Preview
+                </button>
+                <button
+                  aria-pressed={outputView === 'structure'}
+                  className={outputView === 'structure' ? 'active' : ''}
+                  disabled={!scene}
+                  onClick={() => setOutputView('structure')}
+                  type="button"
+                >
+                  Structure
+                </button>
+                <button
+                  aria-pressed={outputView === 'code'}
+                  className={outputView === 'code' ? 'active' : ''}
+                  disabled={!generatedPage}
+                  onClick={() => setOutputView('code')}
+                  type="button"
+                >
+                  Code
+                </button>
+              </div>
               <button
-                aria-pressed={outputView === 'preview'}
-                className={outputView === 'preview' ? 'active' : ''}
-                onClick={() => setOutputView('preview')}
-                type="button"
-              >
-                Preview
-              </button>
-              <button
-                aria-pressed={outputView === 'structure'}
-                className={outputView === 'structure' ? 'active' : ''}
-                disabled={!scene}
-                onClick={() => setOutputView('structure')}
-                type="button"
-              >
-                Structure
-              </button>
-              <button
-                aria-pressed={outputView === 'code'}
-                className={outputView === 'code' ? 'active' : ''}
+                className="export-button"
                 disabled={!generatedPage}
-                onClick={() => setOutputView('code')}
+                onClick={exportWebsite}
                 type="button"
               >
-                Code
-              </button>
-              <button disabled={!generatedPage} onClick={exportWebsite} type="button">
-                Export
+                Export HTML
               </button>
             </div>
           </div>

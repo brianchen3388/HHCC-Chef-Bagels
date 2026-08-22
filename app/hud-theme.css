@@ -127,6 +127,35 @@
   background: white;
 }
 
+.panel-heading-actions {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 9px;
+}
+
+.export-button {
+  min-height: 34px;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  background: var(--accent);
+  padding: 0 12px;
+  color: #0d0d0d;
+  font-size: 10px;
+  font-weight: 800;
+  white-space: nowrap;
+  box-shadow: 2px 2px 0 #0d0d0d;
+}
+
+.export-button:not(:disabled):hover {
+  background: white;
+}
+
+.export-button:disabled {
+  opacity: 0.38;
+  box-shadow: none;
+}
+
 .eyebrow {
   color: var(--accent-deep);
 }
@@ -546,6 +575,16 @@
 
   .topbar {
     padding: 0 12px;
+  }
+
+  .panel-heading-actions {
+    gap: 5px;
+  }
+
+  .export-button {
+    min-height: 32px;
+    padding: 0 8px;
+    font-size: 9px;
   }
 
   .generative-shell .inspector {

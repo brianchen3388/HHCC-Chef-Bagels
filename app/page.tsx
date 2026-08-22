@@ -12,7 +12,6 @@ export default function Home() {
       </nav>
 
       <section className="mode-hero">
-        <p className="eyebrow">Wireframe to website</p>
         <h1>
           Draw the idea.<br />
           <span>Build the site.</span>

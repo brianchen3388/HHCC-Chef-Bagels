@@ -614,18 +614,28 @@ function OutputPanel({
           <p className="eyebrow">Output</p>
           <h2 id="preview-heading">Live website</h2>
         </div>
-        <div className="view-tabs" aria-label="Output view">
-          {outputViews.map((view) => (
-            <button
-              aria-pressed={outputView === view.id}
-              className={outputView === view.id ? 'active' : ''}
-              key={view.id}
-              onClick={() => setOutputView(view.id)}
-              type="button"
-            >
-              {view.label}
-            </button>
-          ))}
+        <div className="panel-heading-actions">
+          <div className="view-tabs" aria-label="Output view">
+            {outputViews.map((view) => (
+              <button
+                aria-pressed={outputView === view.id}
+                className={outputView === view.id ? 'active' : ''}
+                key={view.id}
+                onClick={() => setOutputView(view.id)}
+                type="button"
+              >
+                {view.label}
+              </button>
+            ))}
+          </div>
+          <button
+            className="export-button"
+            disabled={site.tree.children.length === 0}
+            onClick={onExport}
+            type="button"
+          >
+            Export HTML
+          </button>
         </div>
       </div>
 
@@ -839,9 +849,6 @@ function OutputPanel({
               {codeView === 'css' && <span className="css-source-badge">{cssLabel}</span>}
             </div>
             <div>
-              <button disabled={site.tree.children.length === 0} onClick={onExport} type="button">
-                Export HTML
-              </button>
               <button disabled={site.tree.children.length === 0} onClick={onCopy} type="button">
                 {copiedLabel}
               </button>
