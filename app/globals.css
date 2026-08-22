@@ -579,7 +579,7 @@ button:disabled { color: inherit; cursor: default; opacity: 1; }
 .generated-nav {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 18px;
   padding: 20px 5%;
   border-bottom: 1px solid #edf0ed;
@@ -690,6 +690,11 @@ button:disabled { color: inherit; cursor: default; opacity: 1; }
 
 .generated-section { display: flex; flex-wrap: wrap; align-items: center; gap: 18px; padding: 38px 7%; }
 .generated-nav-content { display: flex; align-items: center; gap: 12px; }
+.generated-nav-content.nav-left { justify-content: flex-start; }
+.generated-nav-content.nav-right { justify-content: flex-end; margin-left: auto; }
+.generated-taskbar { position: sticky; top: 0; z-index: 5; display: flex; width: min(150px, 22%); min-height: 480px; flex: 0 0 auto; flex-direction: column; align-self: stretch; gap: 12px; background: #18231c; padding: 18px 12px; color: white; }
+.generated-taskbar.taskbar-left { order: -1; }
+.generated-taskbar.taskbar-right { order: 99; margin-left: auto; }
 .generated-nav .generated-button,
 .generated-button { display: inline-flex; min-width: 0; align-items: center; justify-content: center; border: 0; border-radius: 8px; background: #246b47; padding: 9px 13px; color: white; font-size: 9px; overflow-wrap: anywhere; text-align: center; white-space: normal; }
 .generated-card { min-height: 130px; border-radius: 13px; background: white; padding: 18px; }
@@ -708,6 +713,7 @@ button:disabled { color: inherit; cursor: default; opacity: 1; }
 .generated-spatial-row.single { display: block; }
 .generated-spatial-row:not(.single) > * { min-width: 0; max-width: 100%; flex: 1 1 0; }
 .generated-spatial-row:not(.single) > .generated-button { width: 100%; }
+.generated-spatial-row:not(.single) > .generated-taskbar { width: min(150px, 22%); flex: 0 0 min(150px, 22%); }
 .generated-style-target { cursor: pointer; outline: 1px dashed transparent; outline-offset: 3px; }
 .generated-style-target:hover { outline-color: #9ab7a3; }
 .generated-style-target.selected { outline: 2px solid #246b47; }
@@ -716,6 +722,7 @@ button:disabled { color: inherit; cursor: default; opacity: 1; }
 .generated-divider.horizontal { width: 86%; height: 1px; min-height: 1px; border: 0; background: #dce3dd; }
 .generated-divider.vertical { width: 1px; min-width: 1px; min-height: 84px; align-self: stretch; border: 0; background: #dce3dd; }
 .generated-nav.variant-alternate { background: #18231c; color: white; }
+.generated-taskbar.variant-alternate { background: #246b47; }
 .generated-hero.variant-alternate { justify-items: center; background: linear-gradient(135deg, #edf7f0, #d4eadb); text-align: center; }
 .generated-section.variant-alternate { margin: 12px 4%; border: 1px solid #bdd2c4; border-radius: 14px; background: #f7faf7; }
 .generated-features.variant-alternate { background: #dfece2; }
@@ -733,7 +740,9 @@ p.variant-alternate { border-left: 3px solid #246b47; background: #f0f6f2; paddi
 .preview-viewport.tablet .generated-card-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .preview-viewport.mobile .generated-nav { gap: 8px; padding: 12px 4%; }
 .preview-viewport.mobile .generated-nav strong { min-width: 0; flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.preview-viewport.mobile .generated-nav-content { display: block; min-width: 0; max-width: 72%; margin-left: auto; overflow-x: auto; scrollbar-width: thin; }
+.preview-viewport.mobile .generated-nav-content { display: flex; min-width: 0; max-width: 48%; overflow-x: auto; scrollbar-width: thin; }
+.preview-viewport.mobile .generated-nav-content.nav-left { margin-left: 0; }
+.preview-viewport.mobile .generated-nav-content.nav-right { margin-left: auto; }
 .preview-viewport.mobile .generated-nav-content .generated-mixed-layout { width: max-content; max-width: none; flex-direction: row; gap: 6px; }
 .preview-viewport.mobile .generated-nav-content .generated-spatial-row { width: auto; flex: 0 0 auto; gap: 6px; }
 .preview-viewport.mobile .generated-nav .generated-button { display: inline-flex; width: auto; max-width: 108px; flex: 0 1 auto; padding: 7px 8px; overflow: hidden; font-size: 7px; text-overflow: ellipsis; white-space: nowrap; }
@@ -743,6 +752,8 @@ p.variant-alternate { border-left: 3px solid #246b47; background: #f0f6f2; paddi
 .preview-viewport.mobile .generated-hero h1 { font-size: 34px; }
 .preview-viewport.mobile .generated-image { min-height: 180px; }
 .preview-viewport.mobile .generated-card-grid { grid-template-columns: 1fr; }
+.preview-viewport.mobile .generated-taskbar,
+.preview-viewport.mobile .generated-spatial-row:not(.single) > .generated-taskbar { width: 58px; flex-basis: 58px; padding: 12px 6px; }
 
 .structure-stage,
 .code-stage {

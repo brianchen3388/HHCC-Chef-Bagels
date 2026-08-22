@@ -81,6 +81,7 @@ const designPresets = [
 
 const correctionTypes: Array<{ value: StructureOverrideType; label: string }> = [
   { value: 'navbar', label: 'Navbar' },
+  { value: 'taskbar', label: 'Taskbar' },
   { value: 'hero', label: 'Hero section' },
   { value: 'section', label: 'Section' },
   { value: 'cardGrid', label: 'Card grid' },
@@ -97,6 +98,7 @@ const correctionTypes: Array<{ value: StructureOverrideType; label: string }> = 
 
 const containerTypes = new Set<WebsiteNode['type']>([
   'navbar',
+  'taskbar',
   'hero',
   'section',
   'cardGrid',
@@ -218,11 +220,48 @@ function GeneratedNode({
   };
 
   if (node.type === 'navbar') {
+    const navbarMidpoint = node.bounds.x + node.bounds.width / 2;
+    const orderedChildren = [...node.children].sort(
+      (first, second) => first.bounds.x - second.bounds.x || first.bounds.y - second.bounds.y,
+    );
+    const leftChildren = orderedChildren.filter(
+      (child) => child.bounds.x + child.bounds.width / 2 < navbarMidpoint,
+    );
+    const rightChildren = orderedChildren.filter(
+      (child) => child.bounds.x + child.bounds.width / 2 >= navbarMidpoint,
+    );
+    const renderNavbarChildren = (children: WebsiteNode[]) => children.map((child) => (
+      <GeneratedNode
+        insideForm={childIsInsideForm}
+        key={child.id}
+        node={child}
+        onImageSelect={onImageSelect}
+        onNavigate={onNavigate}
+        onSelect={onSelect}
+        selectedId={selectedId}
+      />
+    ));
     return (
       <nav className={generatedNodeClass(node, 'generated-nav site-nav', selectedId)} onClick={selectNode}>
-        <strong className="brand" onClick={selectNode} style={node.fontSize ? { fontSize: `${node.fontSize}px` } : undefined}>{node.content ?? 'Studio'}</strong>
-        <div className="generated-nav-content nav-content">{groupedChildren}</div>
+        <div className="generated-nav-content nav-content nav-left">
+          {node.content && <strong className="brand" onClick={selectNode} style={node.fontSize ? { fontSize: `${node.fontSize}px` } : undefined}>{node.content}</strong>}
+          {renderNavbarChildren(leftChildren)}
+        </div>
+        <div className="generated-nav-content nav-content nav-right">
+          {renderNavbarChildren(rightChildren)}
+        </div>
       </nav>
+    );
+  }
+  if (node.type === 'taskbar') {
+    const side = node.bounds.x + node.bounds.width / 2 < 0.5 ? 'left' : 'right';
+    return (
+      <aside
+        className={generatedNodeClass(node, `generated-taskbar taskbar taskbar-${side}`, selectedId)}
+        onClick={selectNode}
+      >
+        {groupedChildren}
+      </aside>
     );
   }
   if (node.type === 'hero') return <section className={generatedNodeClass(node, 'generated-hero hero', selectedId)} onClick={selectNode}>{groupedChildren}</section>;

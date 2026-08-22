@@ -416,6 +416,41 @@ function isWideBottomContainer(primitive: RecognizedPrimitive) {
   );
 }
 
+function isTallSideContainer(primitive: RecognizedPrimitive) {
+  const touchesSide =
+    primitive.bounds.x < 0.18 ||
+    primitive.bounds.x + primitive.bounds.width > 0.82;
+  return (
+    primitive.type === 'container' &&
+    primitive.bounds.width <= 0.24 &&
+    visualHeight(primitive.bounds.height) >= 0.3 &&
+    touchesSide
+  );
+}
+
+function axisOverlapRatio(
+  firstStart: number,
+  firstSize: number,
+  secondStart: number,
+  secondSize: number,
+) {
+  const overlap = Math.max(
+    0,
+    Math.min(firstStart + firstSize, secondStart + secondSize) -
+      Math.max(firstStart, secondStart),
+  );
+  return overlap / Math.max(0.0001, Math.min(firstSize, secondSize));
+}
+
+function rectangleRelationship(first: Bounds, second: Bounds) {
+  const xOverlap = axisOverlapRatio(first.x, first.width, second.x, second.width);
+  const yOverlap = axisOverlapRatio(first.y, first.height, second.y, second.height);
+  return {
+    horizontal: yOverlap > xOverlap,
+    horizontalStrength: yOverlap - xOverlap,
+  };
+}
+
 export function inferWebsite(
   primitives: RecognizedPrimitive[],
   overrides: StructureOverrides = {},
@@ -439,6 +474,7 @@ export function inferWebsite(
     if (primitive.type === 'text') {
       return primitive.id === firstTextId ? 'heading' : 'paragraph';
     }
+    if (isTallSideContainer(primitive)) return 'taskbar';
     if (isWideTopContainer(primitive)) return 'navbar';
     if (isWideBottomContainer(primitive)) return 'footer';
     if (
@@ -473,7 +509,6 @@ export function inferWebsite(
     if (type === 'paragraph') return 'A clear, purposeful section generated from your wireframe.';
     if (type === 'button') return 'Get started';
     if (type === 'input') return 'Your details';
-    if (type === 'navbar') return 'Studio';
     if (type === 'footer') return '© 2026 Your studio';
     if (type === 'card') return 'Feature';
     return undefined;
@@ -499,6 +534,7 @@ export function inferWebsite(
   const canContain = (type: WebsiteNodeType) =>
     [
       'navbar',
+      'taskbar',
       'hero',
       'section',
       'cardGrid',
@@ -558,6 +594,7 @@ export function inferWebsite(
     const primitiveId = current.sourcePrimitiveIds[0];
     const inferredContainerType = [
       'navbar',
+      'taskbar',
       'hero',
       'section',
       'cardGrid',
@@ -601,27 +638,32 @@ export function inferWebsite(
 
     spatialOrder.forEach((child) => {
       const childCenter = boundsCenter(child.bounds);
-      let nearestRow: WebsiteNode[] | null = null;
-      let nearestPairIsHorizontal = false;
+      let bestRow: WebsiteNode[] | null = null;
+      let bestOverlapStrength = 0;
       let bestDistance = Number.POSITIVE_INFINITY;
 
       rows.forEach((row) => {
         row.forEach((candidate) => {
+          const relationship = rectangleRelationship(child.bounds, candidate.bounds);
+          if (!relationship.horizontal) return;
           const candidateCenter = boundsCenter(candidate.bounds);
-          const horizontalDistance = Math.abs(childCenter.x - candidateCenter.x);
-          const verticalDistance =
-            Math.abs(childCenter.y - candidateCenter.y) * CANVAS_PAGE_RATIO;
-          const pairDistance = Math.hypot(horizontalDistance, verticalDistance);
-          if (pairDistance < bestDistance) {
-            nearestRow = row;
-            nearestPairIsHorizontal = horizontalDistance > verticalDistance;
+          const pairDistance = Math.hypot(
+            childCenter.x - candidateCenter.x,
+            (childCenter.y - candidateCenter.y) * CANVAS_PAGE_RATIO,
+          );
+          if (
+            relationship.horizontalStrength > bestOverlapStrength ||
+            (relationship.horizontalStrength === bestOverlapStrength && pairDistance < bestDistance)
+          ) {
+            bestRow = row;
+            bestOverlapStrength = relationship.horizontalStrength;
             bestDistance = pairDistance;
           }
         });
       });
 
-      const targetRow = nearestRow as WebsiteNode[] | null;
-      if (targetRow && nearestPairIsHorizontal) targetRow.push(child);
+      const targetRow = bestRow as WebsiteNode[] | null;
+      if (targetRow) targetRow.push(child);
       else rows.push([child]);
     });
 

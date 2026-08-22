@@ -69,6 +69,7 @@ export type RecognizedPrimitive = {
 export type WebsiteNodeType =
   | 'page'
   | 'navbar'
+  | 'taskbar'
   | 'hero'
   | 'section'
   | 'cardGrid'

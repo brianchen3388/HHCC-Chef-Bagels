@@ -61,13 +61,34 @@ function renderNode(
   const textStyle = node.fontSize ? ` style={{ fontSize: ${node.fontSize} }}` : '';
 
   if (node.type === 'navbar') {
+    const navbarMidpoint = node.bounds.x + node.bounds.width / 2;
+    const orderedChildren = [...node.children].sort(
+      (first, second) => first.bounds.x - second.bounds.x || first.bounds.y - second.bounds.y,
+    );
+    const leftChildren = orderedChildren.filter(
+      (child) => child.bounds.x + child.bounds.width / 2 < navbarMidpoint,
+    );
+    const rightChildren = orderedChildren.filter(
+      (child) => child.bounds.x + child.bounds.width / 2 >= navbarMidpoint,
+    );
     return [
       `${pad}<nav className="${variantClass(node, 'site-nav')}">`,
-      `${pad}  <a className="brand" href="#"${textStyle}>${content || 'Studio'}</a>`,
-      `${pad}  <div className="nav-content">`,
-      ...renderRows(node, depth + 2, childIsInsideForm, pageById),
+      `${pad}  <div className="nav-content nav-left">`,
+      ...(content ? [`${pad}    <a className="brand" href="#"${textStyle}>${content}</a>`] : []),
+      ...leftChildren.flatMap((child) => renderNode(child, depth + 2, childIsInsideForm, pageById)),
+      `${pad}  </div>`,
+      `${pad}  <div className="nav-content nav-right">`,
+      ...rightChildren.flatMap((child) => renderNode(child, depth + 2, childIsInsideForm, pageById)),
       `${pad}  </div>`,
       `${pad}</nav>`,
+    ];
+  }
+  if (node.type === 'taskbar') {
+    const side = node.bounds.x + node.bounds.width / 2 < 0.5 ? 'left' : 'right';
+    return [
+      `${pad}<aside className="${variantClass(node, `taskbar taskbar-${side}`)}">`,
+      ...children,
+      `${pad}</aside>`,
     ];
   }
   if (node.type === 'hero') {
@@ -196,9 +217,14 @@ export function generateCss() {
 * { box-sizing: border-box; }
 body { margin: 0; color: var(--ink); font-family: Inter, sans-serif; }
 .site { min-height: 100vh; background: white; }
-.site-nav { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 24px 6vw; }
+.site-nav { display: flex; align-items: center; gap: 24px; padding: 24px 6vw; }
 .brand { color: var(--ink); font-weight: 750; text-decoration: none; }
 .nav-content { display: flex; align-items: center; gap: 18px; }
+.nav-left { justify-content: flex-start; }
+.nav-right { justify-content: flex-end; margin-left: auto; }
+.taskbar { position: sticky; top: 0; z-index: 5; display: flex; width: min(220px, 24vw); min-height: 100vh; flex: 0 0 auto; flex-direction: column; gap: 16px; background: var(--ink); padding: 24px 18px; color: white; }
+.taskbar-left { order: -1; }
+.taskbar-right { order: 99; margin-left: auto; }
 .hero { display: flex; flex-wrap: wrap; align-items: center; gap: 32px; padding: 80px 6vw 96px; }
 .hero h1 { max-width: 12ch; margin: 0; font-size: clamp(44px, 7vw, 88px); line-height: 0.96; }
 .hero p, .section p { max-width: 52ch; color: var(--muted); line-height: 1.7; }
@@ -224,6 +250,7 @@ footer { display: flex; align-items: center; gap: 20px; padding: 32px 6vw; color
 .spatial-row:not(.single) > .primary-button { width: 100%; }
 .site-nav.variant-alternate { background: var(--ink); color: white; }
 .site-nav.variant-alternate .brand { color: white; }
+.taskbar.variant-alternate { background: var(--accent); }
 .hero.variant-alternate { justify-content: center; background: linear-gradient(135deg, #edf7f0, #d4eadb); text-align: center; }
 .section.variant-alternate { margin: 24px 4vw; border: 1px solid #bdd2c4; border-radius: 20px; background: #f7faf7; }
 .features.variant-alternate { background: #dfece2; }
@@ -242,6 +269,8 @@ footer { display: flex; align-items: center; gap: 20px; padding: 32px 6vw; color
   .site-nav { align-items: center; gap: 12px; padding: 16px 4vw; }
   .site-nav .brand { min-width: 0; flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .nav-content { min-width: 0; margin-left: auto; flex-direction: row; flex-wrap: nowrap; gap: 8px; overflow-x: auto; }
+  .nav-left { margin-left: 0; }
+  .taskbar { position: static; width: 72px; min-height: 100vh; padding: 14px 8px; }
   .site-nav .mixed-layout { width: max-content; flex-direction: row; gap: 8px; }
   .site-nav .spatial-row { width: auto; flex: 0 0 auto; gap: 8px; }
   .site-nav .primary-button { width: auto; max-width: 120px; flex: 0 1 auto; padding: 10px 12px; overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
