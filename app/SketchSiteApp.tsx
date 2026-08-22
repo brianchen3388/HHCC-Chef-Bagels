@@ -117,11 +117,47 @@ function generatedNodeClass(node: WebsiteNode, base: string, selectedId: string 
   ].filter(Boolean).join(' ');
 }
 
+const previewLayoutLockCss = `
+.generated-site-preview .generated-page-layout { display: block; width: 100%; max-width: 100%; min-height: 100%; overflow-x: hidden; }
+.generated-site-preview .generated-nav { display: flex; width: 100%; max-width: 100%; height: 64px; max-height: 64px; align-items: center; flex-flow: row nowrap; gap: 18px; overflow: hidden; padding: 20px 5%; }
+.generated-site-preview .generated-nav-content { display: flex; min-width: 0; max-width: 100%; align-items: center; flex-flow: row nowrap; gap: 12px; }
+.generated-site-preview .generated-nav-content.nav-left { justify-content: flex-start; }
+.generated-site-preview .generated-nav-content.nav-right { justify-content: flex-end; margin-left: auto; }
+.generated-site-preview .generated-hero { display: grid; width: 100%; max-width: 100%; grid-template-columns: 1.05fr 0.95fr; align-items: center; gap: 8%; min-height: 310px; padding: 54px 7%; }
+.generated-site-preview .generated-hero h1 { max-width: 11ch; margin: 0; font-size: clamp(26px, 4vw, 52px); line-height: 0.98; overflow-wrap: anywhere; }
+.generated-site-preview .generated-section { display: flex; width: 100%; max-width: 100%; flex-wrap: wrap; align-items: center; gap: 18px; padding: 38px 7%; }
+.generated-site-preview .generated-features { width: 100%; max-width: 100%; padding: 44px 7%; }
+.generated-site-preview .generated-card-grid { display: grid; width: 100%; max-width: 100%; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.generated-site-preview .generated-card { min-width: 0; max-width: 100%; padding: 18px; }
+.generated-site-preview .generated-image { width: 100%; min-width: 0; max-width: 100%; min-height: 0; aspect-ratio: 16 / 9; flex: 1 1 0; overflow: hidden; background-position: center; background-repeat: no-repeat; background-size: contain; }
+.generated-site-preview .generated-nav .generated-image { width: min(96px, 18vw); height: 32px; min-height: 0; max-height: 32px; aspect-ratio: auto; flex: 0 1 96px; }
+.generated-site-preview .generated-button { display: inline-flex; min-width: 0; max-width: 100%; align-items: center; justify-content: center; padding: 9px 13px; overflow-wrap: anywhere; white-space: normal; }
+.generated-site-preview .generated-form { display: grid; width: 100%; max-width: 100%; gap: 9px; padding: 38px 7%; }
+.generated-site-preview .generated-field { display: grid; min-width: 0; max-width: 100%; gap: 5px; }
+.generated-site-preview .generated-field input { width: 100%; max-width: 100%; min-height: 34px; padding: 0 9px; }
+.generated-site-preview .generated-footer { display: flex; width: 100%; max-width: 100%; align-items: center; gap: 20px; padding: 24px 7%; }
+.generated-site-preview .generated-mixed-layout { display: flex; width: 100%; max-width: 100%; flex-direction: column; gap: 14px; }
+.generated-site-preview .generated-spatial-row { display: flex; width: 100%; max-width: 100%; flex-flow: row nowrap; align-items: center; gap: 18px; }
+.generated-site-preview .generated-spatial-row.single { display: block; }
+.generated-site-preview .generated-spatial-row:not(.single) > * { min-width: 0; max-width: 100%; flex: 1 1 0; }
+.generated-site-preview .generated-spatial-row:not(.single) > .generated-button { width: 100%; }
+.preview-viewport.tablet .generated-site-preview .generated-card-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.preview-viewport.mobile .generated-site-preview .generated-nav { height: 52px; max-height: 52px; gap: 8px; padding: 12px 4%; }
+.preview-viewport.mobile .generated-site-preview .generated-nav-content { min-width: 0; max-width: 48%; overflow-x: auto; }
+.preview-viewport.mobile .generated-site-preview .generated-nav-content .generated-mixed-layout { width: max-content; max-width: none; flex-direction: row; gap: 6px; }
+.preview-viewport.mobile .generated-site-preview .generated-nav-content .generated-spatial-row { width: auto; flex: 0 0 auto; gap: 6px; }
+.preview-viewport.mobile .generated-site-preview .generated-nav .generated-button { width: auto; max-width: 108px; flex: 0 1 auto; padding: 7px 8px; overflow: hidden; font-size: 7px; white-space: nowrap; }
+.preview-viewport.mobile .generated-site-preview .generated-nav .generated-image { width: min(64px, 18vw); height: 28px; max-height: 28px; flex-basis: 64px; }
+.preview-viewport.mobile .generated-site-preview .generated-hero { grid-template-columns: 1fr; gap: 28px; padding: 40px 8%; }
+.preview-viewport.mobile .generated-site-preview .generated-card-grid { grid-template-columns: 1fr; }
+.preview-viewport.mobile .generated-site-preview .generated-spatial-row:not(.single) { flex-wrap: wrap; }
+`;
+
 function scopeGeneratedCss(css: string) {
   const scopedSelectors = css
     .replaceAll(':root', '&')
     .replace(/(^|[,\s>+~])body\b(?=\s*[{,:.#>+~\[])/gm, '$1&');
-  return `.generated-site-preview {\n${scopedSelectors}\n}`;
+  return `.generated-site-preview {\n${scopedSelectors}\n}\n${previewLayoutLockCss}`;
 }
 
 function GeneratedRows({

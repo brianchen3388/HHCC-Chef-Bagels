@@ -12,6 +12,27 @@ export function visibleProjectText(pages: GeneratedProjectPage[]) {
   return values.slice(0, 40);
 }
 
+function summarizeNode(node: WebsiteNode): unknown {
+  return {
+    id: node.id,
+    type: node.type,
+    layout: node.layout,
+    bounds: node.bounds,
+    childRows: node.childRows,
+    children: node.children.map(summarizeNode),
+  };
+}
+
+export function projectStructure(pages: GeneratedProjectPage[]) {
+  return JSON.stringify({
+    pages: pages.map((page) => ({
+      name: page.name,
+      slug: page.slug,
+      structure: summarizeNode(page.site.tree),
+    })),
+  });
+}
+
 export async function generateKimiCss(
   pages: GeneratedProjectPage[],
   originalCss: string,
@@ -25,6 +46,7 @@ export async function generateKimiCss(
       task: 'css',
       designPrompt,
       originalCss,
+      structure: projectStructure(pages),
       visibleText: visibleProjectText(pages),
     }),
     signal,

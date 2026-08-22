@@ -209,7 +209,7 @@ export function generateCss() {
 * { box-sizing: border-box; }
 body { margin: 0; color: var(--ink); font-family: Inter, sans-serif; }
 .site { min-height: 100vh; background: white; }
-.site-nav { display: flex; align-items: center; gap: 24px; padding: 24px 6vw; }
+.site-nav { display: flex; height: 72px; max-height: 72px; align-items: center; gap: 24px; overflow: hidden; padding: 24px 6vw; }
 .brand { color: var(--ink); font-weight: 750; text-decoration: none; }
 .nav-content { display: flex; align-items: center; gap: 18px; }
 .nav-left { justify-content: flex-start; }
@@ -223,8 +223,9 @@ body { margin: 0; color: var(--ink); font-family: Inter, sans-serif; }
 .card { border-radius: 18px; background: white; padding: 28px; }
 .card p { color: var(--muted); line-height: 1.6; }
 .primary-button { display: inline-flex; min-width: 0; align-items: center; justify-content: center; border: 0; border-radius: 10px; background: var(--accent); color: white; padding: 14px 20px; overflow-wrap: anywhere; text-align: center; text-decoration: none; white-space: normal; }
-.site-image { flex: 1 1 320px; min-height: 300px; border-radius: 24px; background: linear-gradient(145deg, #dcecdf, #9fc4ad); }
-.site-image.imported { width: 100%; height: auto; min-height: 0; background: white; object-fit: contain; }
+.site-image { width: 100%; min-width: 0; max-width: 100%; min-height: 0; aspect-ratio: 16 / 9; flex: 1 1 0; overflow: hidden; border-radius: 24px; background: linear-gradient(145deg, #dcecdf, #9fc4ad) center / contain no-repeat; }
+.site-image.imported { width: 100%; min-height: 0; background-color: white; background-position: center; background-repeat: no-repeat; background-size: contain; }
+.site-nav .site-image { width: min(96px, 18vw); height: 40px; min-height: 0; max-height: 40px; aspect-ratio: auto; flex: 0 1 96px; border-radius: 8px; }
 .contact-form { display: grid; width: min(560px, 100%); gap: 10px; padding: 48px 6vw; }
 .field { display: grid; gap: 6px; }
 input { min-height: 48px; margin-bottom: 12px; border: 1px solid #cdd7cf; border-radius: 9px; padding: 0 14px; }
@@ -254,14 +255,64 @@ footer { display: flex; align-items: center; gap: 20px; padding: 32px 6vw; color
 .site-footer.variant-alternate { background: var(--ink); color: white; }
 
 @media (max-width: 700px) {
-  .site-nav { align-items: center; gap: 12px; padding: 16px 4vw; }
+  .site-nav { height: 64px; max-height: 64px; align-items: center; gap: 12px; padding: 16px 4vw; }
   .site-nav .brand { min-width: 0; flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .nav-content { min-width: 0; margin-left: auto; flex-direction: row; flex-wrap: nowrap; gap: 8px; overflow-x: auto; }
   .nav-left { margin-left: 0; }
   .site-nav .mixed-layout { width: max-content; flex-direction: row; gap: 8px; }
   .site-nav .spatial-row { width: auto; flex: 0 0 auto; gap: 8px; }
   .site-nav .primary-button { width: auto; max-width: 120px; flex: 0 1 auto; padding: 10px 12px; overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+  .site-nav .site-image { width: min(72px, 20vw); height: 32px; max-height: 32px; flex-basis: 72px; }
   .hero { padding-top: 56px; }
   .card-grid { grid-template-columns: 1fr; }
+}`;
+}
+
+export function generateLayoutLockCss() {
+  return `/* SketchSite structural layout lock: visual themes must not alter geometry. */
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { font-size: 16px; line-height: 1.5; }
+.site { display: block; width: 100%; max-width: 100%; min-height: 100vh; overflow-x: hidden; }
+.site-nav { display: flex; width: 100%; max-width: 100%; height: 72px; max-height: 72px; align-items: center; flex-flow: row nowrap; gap: 24px; overflow: hidden; padding: 24px 6vw; }
+.brand { min-width: 0; max-width: 100%; }
+.nav-content { display: flex; min-width: 0; max-width: 100%; align-items: center; flex-flow: row nowrap; gap: 18px; }
+.nav-left { justify-content: flex-start; }
+.nav-right { justify-content: flex-end; margin-left: auto; }
+.hero { display: flex; width: 100%; max-width: 100%; flex-wrap: wrap; align-items: center; gap: 32px; padding: 80px 6vw 96px; }
+.hero h1 { max-width: 12ch; margin: 0; font-size: clamp(44px, 7vw, 88px); line-height: 0.96; overflow-wrap: anywhere; }
+.hero p, .section p { max-width: 52ch; line-height: 1.7; }
+.section, .features { width: 100%; max-width: 100%; padding: 72px 6vw; }
+.card-grid { display: grid; width: 100%; max-width: 100%; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; }
+.card { min-width: 0; max-width: 100%; padding: 28px; }
+.site-heading, .site-paragraph { max-width: 100%; overflow-wrap: anywhere; }
+.site-image { width: 100%; min-width: 0; max-width: 100%; min-height: 0; aspect-ratio: 16 / 9; flex: 1 1 0; overflow: hidden; background-position: center; background-repeat: no-repeat; background-size: contain; }
+.site-nav .site-image { width: min(96px, 18vw); height: 40px; min-height: 0; max-height: 40px; aspect-ratio: auto; flex: 0 1 96px; }
+.primary-button { display: inline-flex; min-width: 0; max-width: 100%; align-items: center; justify-content: center; padding: 14px 20px; overflow-wrap: anywhere; white-space: normal; }
+.contact-form { display: grid; width: min(560px, 100%); max-width: 100%; gap: 10px; padding: 48px 6vw; }
+.field { display: grid; min-width: 0; max-width: 100%; gap: 6px; }
+.field input, input { width: 100%; max-width: 100%; min-height: 48px; margin-bottom: 12px; padding: 0 14px; }
+.divider { flex: 0 0 auto; }
+.divider-horizontal { width: 88%; height: 1px; }
+.divider-vertical { width: 1px; min-height: 96px; align-self: stretch; }
+.site-footer { display: flex; width: 100%; max-width: 100%; align-items: center; gap: 20px; padding: 32px 6vw; }
+.mixed-layout { display: flex; width: 100%; max-width: 100%; flex-direction: column; gap: 18px; }
+.spatial-row { display: flex; width: 100%; max-width: 100%; flex-flow: row nowrap; align-items: center; gap: 24px; }
+.spatial-row.single { display: block; }
+.spatial-row:not(.single) > * { min-width: 0; max-width: 100%; flex: 1 1 0; }
+.spatial-row:not(.single) > .primary-button { width: 100%; }
+
+@media (max-width: 700px) {
+  .site-nav { height: 64px; max-height: 64px; gap: 12px; padding: 16px 4vw; }
+  .site-nav .brand { min-width: 0; flex: 0 1 auto; overflow: hidden; white-space: nowrap; }
+  .nav-content { min-width: 0; margin-left: auto; flex-direction: row; flex-wrap: nowrap; gap: 8px; overflow-x: auto; }
+  .nav-left { margin-left: 0; }
+  .site-nav .mixed-layout { width: max-content; max-width: none; flex-direction: row; gap: 8px; }
+  .site-nav .spatial-row { width: auto; flex: 0 0 auto; gap: 8px; }
+  .site-nav .primary-button { width: auto; max-width: 120px; flex: 0 1 auto; padding: 10px 12px; overflow: hidden; font-size: 12px; white-space: nowrap; }
+  .site-nav .site-image { width: min(72px, 20vw); height: 32px; max-height: 32px; flex-basis: 72px; }
+  .hero { padding-top: 56px; }
+  .card-grid { grid-template-columns: 1fr; }
+  .spatial-row:not(.single) { flex-wrap: wrap; }
 }`;
 }
